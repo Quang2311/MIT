@@ -1,4 +1,4 @@
-import { Check, PartyPopper, Calendar, TrendingUp } from "lucide-react";
+import { Check, Calendar, TrendingUp } from "lucide-react";
 
 interface CheckoutSuccessProps {
     completedCount: number;
