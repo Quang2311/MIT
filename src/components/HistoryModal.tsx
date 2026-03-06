@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { X, Calendar, CheckCircle, Clock, TrendingUp, Pencil, Trash2 } from "lucide-react";
+import { X, Calendar, CheckCircle, Clock, TrendingUp, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 interface HistorySession {
@@ -14,10 +14,9 @@ interface HistorySession {
 interface HistoryModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onEditSession?: (sessionDate: string) => void;
 }
 
-export const HistoryModal = ({ isOpen, onClose, onEditSession }: HistoryModalProps) => {
+export const HistoryModal = ({ isOpen, onClose }: HistoryModalProps) => {
     const [sessions, setSessions] = useState<HistorySession[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -110,15 +109,7 @@ export const HistoryModal = ({ isOpen, onClose, onEditSession }: HistoryModalPro
         return "text-orange-500 bg-orange-50";
     };
 
-    const isToday = (dateStr: string) => {
-        const date = new Date(dateStr);
-        const today = new Date();
-        return date.toDateString() === today.toDateString();
-    };
 
-    const canEdit = (session: HistorySession) => {
-        return isToday(session.session_date);
-    };
 
     if (!isOpen) return null;
 
@@ -173,29 +164,11 @@ export const HistoryModal = ({ isOpen, onClose, onEditSession }: HistoryModalPro
                                             <span className="font-medium text-gray-700">
                                                 {formatDate(session.session_date)}
                                             </span>
-                                            {isToday(session.session_date) && (
-                                                <span className="px-2 py-0.5 bg-blue-100 text-blue-600 text-xs rounded-full">
-                                                    Hôm nay
-                                                </span>
-                                            )}
                                         </div>
                                         <div className="flex items-center gap-1">
                                             <span className="text-xs text-gray-400 mr-1">
                                                 {formatTime(session.checkout_at)}
                                             </span>
-                                            {/* Edit button for today's session */}
-                                            {canEdit(session) && onEditSession && (
-                                                <button
-                                                    onClick={() => {
-                                                        onClose();
-                                                        onEditSession(session.session_date);
-                                                    }}
-                                                    className="p-1.5 text-orange-500 hover:bg-orange-50 rounded-lg transition-colors"
-                                                    title="Sửa lại"
-                                                >
-                                                    <Pencil size={16} />
-                                                </button>
-                                            )}
                                             {/* Delete button */}
                                             <button
                                                 onClick={() => handleDelete(session.id)}
@@ -230,19 +203,13 @@ export const HistoryModal = ({ isOpen, onClose, onEditSession }: HistoryModalPro
                                     <div className="mt-3 h-2 bg-gray-200 rounded-full overflow-hidden">
                                         <div
                                             className={`h-full transition-all duration-300 ${session.completion_rate === 100 ? 'bg-green-500' :
-                                                    session.completion_rate >= 50 ? 'bg-blue-500' : 'bg-orange-500'
+                                                session.completion_rate >= 50 ? 'bg-blue-500' : 'bg-orange-500'
                                                 }`}
                                             style={{ width: `${session.completion_rate}%` }}
                                         />
                                     </div>
 
-                                    {/* Edit hint for today's session */}
-                                    {canEdit(session) && onEditSession && (
-                                        <p className="mt-2 text-xs text-orange-500 flex items-center gap-1">
-                                            <Pencil size={12} />
-                                            Click vào bút chì để cập nhật tiến độ
-                                        </p>
-                                    )}
+
                                 </div>
                             ))}
                         </div>

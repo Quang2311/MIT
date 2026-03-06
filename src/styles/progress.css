@@ -1,0 +1,101 @@
+/* ================================================================
+   PROGRESS.CSS — Journey View (Hành trình của tôi)
+   Hero metrics, chart, accordion
+   ================================================================ */
+
+/* ===== HERO METRICS GRID ===== */
+.hero-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+.hero-card {
+  background: white;
+  border-radius: 16px;
+  padding: 22px 24px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 4px 12px -4px rgba(0, 0, 0, 0.04);
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.hero-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 20px -4px rgba(0, 0, 0, 0.08);
+}
+
+/* ===== CHART CONTAINER ===== */
+.chart-card {
+  background: white;
+  border-radius: 16px;
+  padding: 24px 28px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 4px 12px -4px rgba(0, 0, 0, 0.04);
+}
+.chart-tooltip {
+  position: absolute;
+  background: #312e81;
+  color: white;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 8px;
+  pointer-events: none;
+  white-space: nowrap;
+  transform: translate(-50%, -120%);
+  box-shadow: 0 4px 12px rgba(49, 46, 129, 0.3);
+  z-index: 10;
+}
+.chart-tooltip::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: #312e81;
+}
+
+/* ===== ACCORDION ===== */
+.accordion-card {
+  background: white;
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+  transition: box-shadow 0.2s ease;
+}
+.accordion-card:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+.accordion-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.accordion-header:hover {
+  background: #f8fafc;
+}
+.accordion-body {
+  padding: 0 20px 16px;
+}
+.accordion-chevron {
+  transition: transform 0.25s ease;
+}
+.accordion-chevron-open {
+  transform: rotate(180deg);
+}
+
+/* Task item in accordion */
+.history-task {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  transition: background 0.15s ease;
+}
+.history-task:hover {
+  background: #f8fafc;
+}

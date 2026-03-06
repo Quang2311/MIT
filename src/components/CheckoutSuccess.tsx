@@ -1,10 +1,11 @@
-import { Check, PartyPopper, Calendar, TrendingUp } from "lucide-react";
+import { Check, Calendar, TrendingUp } from "lucide-react";
 
 interface CheckoutSuccessProps {
     completedCount: number;
     totalCount: number;
     completionRate: number;
     onViewHistory: () => void;
+    onBackToDashboard: () => void;
     onLogout: () => void;
 }
 
@@ -13,6 +14,7 @@ export const CheckoutSuccess = ({
     totalCount,
     completionRate,
     onViewHistory,
+    onBackToDashboard,
     onLogout
 }: CheckoutSuccessProps) => {
     const today = new Date().toLocaleDateString("vi-VN", {
@@ -139,6 +141,13 @@ export const CheckoutSuccess = ({
                             >
                                 <TrendingUp size={18} />
                                 Xem lịch sử làm việc
+                            </button>
+                            <button
+                                onClick={onBackToDashboard}
+                                className="w-full py-3 bg-slate-50 hover:bg-slate-100 text-slate-700 font-medium rounded-xl transition-colors flex items-center justify-center gap-2 border border-slate-200"
+                            >
+                                <Calendar size={18} />
+                                Quay lại giao diện
                             </button>
                             <button
                                 onClick={onLogout}

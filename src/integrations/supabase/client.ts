@@ -4,6 +4,10 @@ import { Database } from "./types";
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
+// Debug: verify env vars are loaded correctly
+console.log("[Supabase] URL:", supabaseUrl);
+console.log("[Supabase] Key (first 20 chars):", supabaseKey?.substring(0, 20));
+
 // Only throw if in browser context to avoid build crashes if env vars are missing during CI
 if (typeof window !== "undefined" && (!supabaseUrl || !supabaseKey)) {
     console.warn("Missing Supabase Environment Variables");

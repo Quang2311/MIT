@@ -35,3 +35,4 @@ supabase/functions/.env
 
 # Vercel
 .vercel
+.env*.local

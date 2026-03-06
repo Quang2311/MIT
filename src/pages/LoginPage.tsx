@@ -5,8 +5,6 @@ import * as z from "zod";
 import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "../integrations/supabase/client";
 
-import logo from "../assets/logo.png";
-
 const loginSchema = z.object({
     email: z
         .string()
@@ -42,7 +40,6 @@ const LoginPage = () => {
 
             if (authError) throw authError;
 
-            // Successful login
             navigate("/app");
         } catch (err: any) {
             console.error("Login error:", err);
@@ -53,103 +50,185 @@ const LoginPage = () => {
     };
 
     return (
-        <div className="flex min-h-screen items-center justify-center bg-gray-100 px-4 py-12 sm:px-6 lg:px-8">
-            <div className="w-full max-w-md">
-                <div className="text-center mb-8">
-                    <img
-                        src={logo}
-                        alt="MIT Manager Logo"
-                        className="mx-auto h-20 w-20 mb-4"
-                    />
-                    <h1 className="text-3xl font-bold text-gray-900">MIT Manager</h1>
-                    <p className="mt-2 text-sm text-gray-600">
-                        Quản lý công việc quan trọng mỗi ngày
-                    </p>
-                </div>
+        <div className="font-sans min-h-screen flex overflow-hidden bg-white dark:bg-slate-900">
+            {/* ===== LEFT SIDEBAR (desktop only) ===== */}
+            <div className="hidden lg:flex lg:w-1/2 bg-slate-50 dark:bg-slate-950 relative flex-col items-center justify-center p-12 overflow-hidden border-r border-slate-100 dark:border-slate-800">
+                {/* Cloud pattern background */}
+                <div className="absolute inset-0 bg-cloud-pattern opacity-60 z-0 pointer-events-none" />
 
-                {/* White Card Container */}
-                <div className="bg-white rounded-lg shadow-lg p-8">
-                    <div className="text-center mb-6">
-                        <h2 className="text-2xl font-bold text-gray-900">Đăng nhập</h2>
-                        <p className="mt-2 text-sm text-blue-600">
-                            Nhập thông tin để tiếp tục
+                {/* Blurred gradient orbs */}
+                <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-blue-100 rounded-full mix-blend-multiply filter blur-3xl opacity-40 animate-pulse" />
+                <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-cyan-100 rounded-full mix-blend-multiply filter blur-3xl opacity-40" />
+
+                {/* Chinese Proverb */}
+                <div className="relative z-10 max-w-lg text-center space-y-8">
+                    <div className="space-y-4">
+                        <h2 className="text-6xl font-chinese text-slate-800 dark:text-slate-200 font-light tracking-wide leading-relaxed drop-shadow-sm">
+                            千里之行<br />始于足下
+                        </h2>
+                        <div className="h-16 w-[1px] bg-gradient-to-b from-transparent via-slate-300 to-transparent mx-auto my-6" />
+                        <p className="text-2xl font-serif italic text-slate-600 dark:text-slate-400 font-light leading-relaxed">
+                            "Hành trình vạn dặm<br />bắt đầu từ một bước chân."
                         </p>
                     </div>
-                    <form className="space-y-6" onSubmit={handleSubmit(onSubmit)}>
-                        <div className="space-y-4">
-                            {/* Employee Code */}
-                            <div>
-                                <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
-                                    Đăng nhập
+                    <p className="text-xs text-slate-400 uppercase tracking-[0.3em] mt-12 font-medium">
+                        Wisdom • Focus • Growth
+                    </p>
+                </div>
+            </div>
+
+            {/* ===== RIGHT — LOGIN FORM ===== */}
+            <div className="w-full lg:w-1/2 flex items-center justify-center p-6 bg-white dark:bg-slate-900 relative">
+                {/* Gradient border wrapper */}
+                <div className="w-full max-w-md p-[1px] rounded-2xl bg-gradient-to-br from-slate-200 via-blue-50 to-slate-200 dark:from-slate-700 dark:via-slate-800 dark:to-slate-700 shadow-xl shadow-slate-200/50 dark:shadow-slate-900/50">
+                    <div className="bg-white dark:bg-slate-900 rounded-2xl p-8 md:p-10 relative overflow-hidden">
+                        {/* Top accent line */}
+                        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-400 to-cyan-300" />
+
+                        {/* Header */}
+                        <div className="flex flex-col items-center text-center mb-8">
+                            <img
+                                alt="Dong Nguyen Logo"
+                                className="h-16 object-contain mb-5"
+                                src="https://lh3.googleusercontent.com/aida-public/AB6AXuD4ufR262fnIuAhSqzgOvYJSySLsvMN7MwSww1zOCbGlO1NA8EGgYMmaVcc3QK0BxiLIWjXJzIzi6S0CvF0aVRzPpp5LzWpJkmx3-r_FC4qW4XDsJ_M28Q7xVlNX6aOmQueRn4eSofGMfQXmStSkl8uK-Sp3TmdvEYWDAjv3iHEyNQAAqfWhCFvkiB0xxbhY_-T-D2ZULUEY6_5mh8d2GRzBvQvpUHHQrK6GjCezm1cvyygAqUyF83PXJA5VDMfpNf4hSpZKyNkzfcQ"
+                            />
+                            <h1 className="text-2xl font-bold text-slate-800 dark:text-white mb-2 tracking-tight">
+                                Đăng nhập
+                            </h1>
+                            <p className="text-slate-500 dark:text-slate-400 text-sm">
+                                Quản lý công việc quan trọng mỗi ngày
+                            </p>
+                        </div>
+
+                        {/* Form */}
+                        <form className="space-y-6" onSubmit={handleSubmit(onSubmit)}>
+                            {/* Email field */}
+                            <div className="space-y-1">
+                                <label
+                                    className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1 pl-1"
+                                    htmlFor="email"
+                                >
+                                    Tài khoản
                                 </label>
-                                <input
-                                    id="email"
-                                    type="email"
-                                    autoComplete="username"
-                                    className={`relative block w-full appearance-none rounded-md border border-gray-300 px-3 py-2 text-gray-900 placeholder-gray-500 focus:z-10 focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm ${errors.email ? "border-red-500" : ""
-                                        }`}
-                                    placeholder="Ví dụ: quang@dongnguyen.vn"
-                                    {...register("email")}
-                                />
+                                <div className="relative group">
+                                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                        <span className="material-symbols-outlined text-slate-400 group-focus-within:text-blue-500 transition-colors text-[20px]">
+                                            person
+                                        </span>
+                                    </div>
+                                    <input
+                                        id="email"
+                                        type="email"
+                                        autoComplete="username"
+                                        className={`w-full pl-10 pr-4 py-3 rounded-lg border bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition-all duration-200 text-sm ${errors.email
+                                                ? "border-red-500"
+                                                : "border-slate-200 dark:border-slate-700"
+                                            }`}
+                                        placeholder="Ví dụ: quang@dongnguyen.vn"
+                                        {...register("email")}
+                                    />
+                                </div>
                                 {errors.email && (
-                                    <p className="mt-1 text-xs text-red-500">
+                                    <p className="mt-1 text-xs text-red-500 pl-1">
                                         {errors.email.message}
                                     </p>
                                 )}
                             </div>
 
-                            {/* Password */}
-                            <div>
-                                <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
+                            {/* Password field */}
+                            <div className="space-y-1">
+                                <label
+                                    className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1 pl-1"
+                                    htmlFor="password"
+                                >
                                     Mật khẩu
                                 </label>
-                                <input
-                                    id="password"
-                                    type="password"
-                                    autoComplete="current-password"
-                                    className={`relative block w-full appearance-none rounded-md border border-gray-300 px-3 py-2 text-gray-900 placeholder-gray-500 focus:z-10 focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm ${errors.password ? "border-red-500" : ""
-                                        }`}
-                                    placeholder="••••••••"
-                                    {...register("password")}
-                                />
+                                <div className="relative group">
+                                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                        <span className="material-symbols-outlined text-slate-400 group-focus-within:text-blue-500 transition-colors text-[20px]">
+                                            lock
+                                        </span>
+                                    </div>
+                                    <input
+                                        id="password"
+                                        type="password"
+                                        autoComplete="current-password"
+                                        className={`w-full pl-10 pr-4 py-3 rounded-lg border bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition-all duration-200 text-sm tracking-widest ${errors.password
+                                                ? "border-red-500"
+                                                : "border-slate-200 dark:border-slate-700"
+                                            }`}
+                                        placeholder="••••••••"
+                                        {...register("password")}
+                                    />
+                                </div>
                                 {errors.password && (
-                                    <p className="mt-1 text-xs text-red-500">
+                                    <p className="mt-1 text-xs text-red-500 pl-1">
                                         {errors.password.message}
                                     </p>
                                 )}
                             </div>
-                        </div>
 
-                        {error && (
-                            <div className="text-center text-sm text-red-600 bg-red-50 p-2 rounded">
-                                {error}
+                            {/* Remember me + Forgot */}
+                            <div className="flex items-center justify-between text-sm pt-2">
+                                <div className="flex items-center">
+                                    <input
+                                        id="remember-me"
+                                        type="checkbox"
+                                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded cursor-pointer transition-colors"
+                                    />
+                                    <label
+                                        htmlFor="remember-me"
+                                        className="ml-2 block text-slate-600 dark:text-slate-400 cursor-pointer select-none"
+                                    >
+                                        Ghi nhớ
+                                    </label>
+                                </div>
+                                <a
+                                    href="#"
+                                    className="font-medium text-blue-600 hover:text-blue-500 dark:text-blue-400 transition-colors hover:underline"
+                                >
+                                    Quên mật khẩu?
+                                </a>
                             </div>
-                        )}
 
-                        <div>
+                            {/* Error message */}
+                            {error && (
+                                <div className="text-center text-sm text-red-600 bg-red-50 dark:bg-red-900/20 p-3 rounded-lg">
+                                    {error}
+                                </div>
+                            )}
+
+                            {/* Submit button */}
                             <button
                                 type="submit"
                                 disabled={loading}
-                                className="group relative flex w-full justify-center rounded-md border border-transparent bg-gradient-to-r from-blue-500 to-cyan-500 px-4 py-2 text-sm font-medium text-white hover:from-blue-600 hover:to-cyan-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-75"
+                                className="w-full py-3 px-4 rounded-lg bg-gradient-to-r from-blue-500 to-cyan-400 hover:from-blue-600 hover:to-cyan-500 text-white font-semibold shadow-lg shadow-blue-500/25 transform active:scale-[0.98] transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 flex items-center justify-center gap-2 mt-4 disabled:opacity-75 disabled:cursor-not-allowed"
                             >
-                                {loading ? "Đang đăng nhập..." : "Đăng nhập"}
+                                <span>
+                                    {loading ? "Đang đăng nhập..." : "Đăng nhập"}
+                                </span>
+                                {!loading && (
+                                    <span className="material-symbols-outlined text-[18px]">
+                                        arrow_forward
+                                    </span>
+                                )}
                             </button>
-                        </div>
+                        </form>
 
-                        <div className="text-center">
-                            <p className="text-sm text-gray-600">
+                        {/* Footer link */}
+                        <div className="mt-8 text-center pt-2">
+                            <p className="text-sm text-slate-500">
                                 Chưa có tài khoản?{" "}
                                 <Link
                                     to="/register"
-                                    className="font-medium text-blue-600 hover:text-blue-500"
+                                    className="font-medium text-blue-600 hover:underline dark:text-blue-400"
                                 >
                                     Đăng ký ngay
                                 </Link>
                             </p>
                         </div>
-                    </form>
+                    </div>
                 </div>
-                {/* End White Card */}
             </div>
         </div>
     );

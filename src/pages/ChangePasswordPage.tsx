@@ -4,7 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../integrations/supabase/client";
-import { ArrowLeft } from "lucide-react";
+import { Lock, KeyRound, CheckCircle, ArrowLeft, ArrowRight } from "lucide-react";
 import logo from "../assets/logo.png";
 
 const changePasswordSchema = z.object({
@@ -18,6 +18,19 @@ const changePasswordSchema = z.object({
 
 type ChangePasswordFormValues = z.infer<typeof changePasswordSchema>;
 
+// Password strength calculator
+const getPasswordStrength = (password: string): number => {
+    if (!password) return 0;
+    let score = 0;
+    if (password.length >= 6) score++;
+    if (password.length >= 8) score++;
+    if (/[A-Z]/.test(password)) score++;
+    if (/[0-9]/.test(password)) score++;
+    return score; // 0–4
+};
+
+const strengthColors = ["bg-slate-200", "bg-red-400", "bg-orange-400", "bg-yellow-400", "bg-green-500"];
+
 const ChangePasswordPage = () => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -27,10 +40,14 @@ const ChangePasswordPage = () => {
     const {
         register,
         handleSubmit,
+        watch,
         formState: { errors },
     } = useForm<ChangePasswordFormValues>({
         resolver: zodResolver(changePasswordSchema),
     });
+
+    const newPassword = watch("new_password", "");
+    const strength = getPasswordStrength(newPassword);
 
     const onSubmit = async (data: ChangePasswordFormValues) => {
         setLoading(true);
@@ -57,130 +74,165 @@ const ChangePasswordPage = () => {
     };
 
     return (
-        <div className="flex min-h-screen items-center justify-center bg-gray-100 px-4 py-12 sm:px-6 lg:px-8">
-            <div className="w-full max-w-md">
-                <div className="text-center mb-8">
-                    <img
-                        src={logo}
-                        alt="MIT Manager Logo"
-                        className="mx-auto h-20 w-20 mb-4"
-                    />
-                    <h1 className="text-3xl font-bold text-gray-900">MIT Manager</h1>
-                    <p className="mt-2 text-sm text-gray-600">
-                        Quản lý công việc quan trọng mỗi ngày
-                    </p>
+        <div className="bg-slate-50 font-sans h-screen w-screen flex flex-col items-center justify-center overflow-hidden relative">
+            {/* ===== Background decoration ===== */}
+            <div className="absolute inset-0 z-0 flex items-center justify-center pointer-events-none overflow-hidden">
+                <div className="w-[800px] h-[800px] bg-blue-100/50 rounded-full blur-3xl absolute -top-40 -left-20 mix-blend-multiply opacity-40 animate-pulse"></div>
+                <div className="w-[600px] h-[600px] bg-cyan-100/50 rounded-full blur-3xl absolute -bottom-20 -right-20 mix-blend-multiply opacity-40"></div>
+                <div className="absolute text-[400px] text-slate-200/20 select-none pointer-events-none transform rotate-12" style={{ fontFamily: "'Noto Serif SC', serif" }}>
+                    云
                 </div>
+            </div>
 
-                {/* White Card Container */}
-                <div className="bg-white rounded-lg shadow-lg p-8 relative">
-                    <button
-                        onClick={() => navigate("/app")}
-                        className="absolute top-4 left-4 text-gray-400 hover:text-gray-600"
-                    >
-                        <ArrowLeft size={20} />
-                    </button>
+            {/* ===== Main card ===== */}
+            <div className="relative z-10 w-full max-w-lg px-4 flex flex-col items-center justify-center h-full">
+                <div className="w-full p-[1px] rounded-2xl bg-gradient-to-br from-white/60 via-blue-50/50 to-white/60 backdrop-blur-sm shadow-2xl shadow-slate-200/50 border border-white/50">
+                    <div className="bg-white/90 rounded-2xl p-8 md:p-10 relative overflow-hidden backdrop-blur-xl">
+                        {/* Top gradient bar */}
+                        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-400 to-cyan-300"></div>
 
-                    <div className="text-center mb-6">
-                        <h2 className="text-2xl font-bold text-gray-900">Đổi mật khẩu</h2>
-                        <p className="mt-2 text-sm text-blue-600">
-                            Cập nhật mật khẩu mới của bạn
-                        </p>
-                    </div>
-
-                    {success ? (
-                        <div className="text-center py-8">
-                            <div className="w-16 h-16 bg-green-100 text-green-500 rounded-full flex items-center justify-center mx-auto mb-4">
-                                <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                </svg>
-                            </div>
-                            <h3 className="text-lg font-medium text-gray-900">Đổi mật khẩu thành công!</h3>
-                            <p className="text-gray-500 mt-2">Đang chuyển hướng về trang chủ...</p>
+                        {/* Header */}
+                        <div className="flex flex-col items-center text-center mb-8">
+                            <img
+                                alt="MIT Manager Logo"
+                                className="h-28 object-contain mb-2"
+                                src={logo}
+                            />
+                            <h1 className="text-2xl font-bold text-slate-800 mb-2 tracking-tight">Đổi mật khẩu</h1>
+                            <p className="text-slate-500 text-sm">Cập nhật mật khẩu để bảo vệ tài khoản của bạn</p>
                         </div>
-                    ) : (
-                        <form className="space-y-6" onSubmit={handleSubmit(onSubmit)}>
-                            <div className="space-y-4">
-                                {/* Old Password - Note: Supabase update logic doesn't strictly require old password confirmation on client side if session is active, 
-                                    but it's good practice for UI. We just mock-check or send it if needed. 
-                                    For simplicity and "Login-like" feel, we verify session is active. */}
-                                <div>
-                                    <label htmlFor="old_password" className="block text-sm font-medium text-gray-700 mb-2">
+
+                        {success ? (
+                            <div className="text-center py-8">
+                                <div className="w-16 h-16 bg-green-100 text-green-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                                    <CheckCircle size={32} />
+                                </div>
+                                <h3 className="text-lg font-medium text-slate-900">Đổi mật khẩu thành công!</h3>
+                                <p className="text-slate-500 mt-2">Đang chuyển hướng về trang chủ...</p>
+                            </div>
+                        ) : (
+                            <form className="space-y-5" onSubmit={handleSubmit(onSubmit)}>
+                                {/* Old password */}
+                                <div className="space-y-1">
+                                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1 pl-1" htmlFor="old_password">
                                         Mật khẩu cũ
                                     </label>
-                                    <input
-                                        id="old_password"
-                                        type="password"
-                                        className={`relative block w-full appearance-none rounded-md border border-gray-300 px-3 py-2 text-gray-900 placeholder-gray-500 focus:z-10 focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm ${errors.old_password ? "border-red-500" : ""
+                                    <div className="relative group">
+                                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                            <Lock className="w-5 h-5 text-slate-400 group-focus-within:text-blue-500 transition-colors" />
+                                        </div>
+                                        <input
+                                            id="old_password"
+                                            type="password"
+                                            className={`w-full pl-10 pr-4 py-3 rounded-lg border bg-slate-50/50 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition-all duration-200 text-sm tracking-widest ${
+                                                errors.old_password ? "border-red-400" : "border-slate-200/80"
                                             }`}
-                                        placeholder="••••••••"
-                                        {...register("old_password")}
-                                    />
+                                            placeholder="••••••••"
+                                            {...register("old_password")}
+                                        />
+                                    </div>
                                     {errors.old_password && (
-                                        <p className="mt-1 text-xs text-red-500">
-                                            {errors.old_password.message}
-                                        </p>
+                                        <p className="text-xs text-red-500 pl-1">{errors.old_password.message}</p>
                                     )}
                                 </div>
 
-                                {/* New Password */}
-                                <div>
-                                    <label htmlFor="new_password" className="block text-sm font-medium text-gray-700 mb-2">
+                                {/* New password */}
+                                <div className="space-y-1">
+                                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1 pl-1" htmlFor="new_password">
                                         Mật khẩu mới
                                     </label>
-                                    <input
-                                        id="new_password"
-                                        type="password"
-                                        className={`relative block w-full appearance-none rounded-md border border-gray-300 px-3 py-2 text-gray-900 placeholder-gray-500 focus:z-10 focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm ${errors.new_password ? "border-red-500" : ""
+                                    <div className="relative group">
+                                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                            <KeyRound className="w-5 h-5 text-slate-400 group-focus-within:text-blue-500 transition-colors" />
+                                        </div>
+                                        <input
+                                            id="new_password"
+                                            type="password"
+                                            className={`w-full pl-10 pr-4 py-3 rounded-lg border bg-slate-50/50 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition-all duration-200 text-sm tracking-widest ${
+                                                errors.new_password ? "border-red-400" : "border-slate-200/80"
                                             }`}
-                                        placeholder="••••••••"
-                                        {...register("new_password")}
-                                    />
+                                            placeholder="••••••••"
+                                            {...register("new_password")}
+                                        />
+                                    </div>
+                                    {/* Strength indicator */}
+                                    <div className="flex gap-1 mt-2 px-1">
+                                        {[1, 2, 3, 4].map((level) => (
+                                            <div key={level} className="h-1 flex-1 bg-slate-200 rounded-full overflow-hidden">
+                                                {strength >= level && (
+                                                    <div className={`h-full w-full ${strengthColors[strength]} transition-all duration-300`}></div>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <p className="text-[10px] text-slate-400 px-1 mt-1">Tối thiểu 6 ký tự, bao gồm chữ hoa và số.</p>
                                     {errors.new_password && (
-                                        <p className="mt-1 text-xs text-red-500">
-                                            {errors.new_password.message}
-                                        </p>
+                                        <p className="text-xs text-red-500 pl-1">{errors.new_password.message}</p>
                                     )}
                                 </div>
 
-                                {/* Confirm Password */}
-                                <div>
-                                    <label htmlFor="confirm_password" className="block text-sm font-medium text-gray-700 mb-2">
-                                        Xác nhận mật khẩu mới
+                                {/* Confirm password */}
+                                <div className="space-y-1">
+                                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1 pl-1" htmlFor="confirm_password">
+                                        Nhập lại mật khẩu mới
                                     </label>
-                                    <input
-                                        id="confirm_password"
-                                        type="password"
-                                        className={`relative block w-full appearance-none rounded-md border border-gray-300 px-3 py-2 text-gray-900 placeholder-gray-500 focus:z-10 focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm ${errors.confirm_password ? "border-red-500" : ""
+                                    <div className="relative group">
+                                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                            <CheckCircle className="w-5 h-5 text-slate-400 group-focus-within:text-blue-500 transition-colors" />
+                                        </div>
+                                        <input
+                                            id="confirm_password"
+                                            type="password"
+                                            className={`w-full pl-10 pr-4 py-3 rounded-lg border bg-slate-50/50 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition-all duration-200 text-sm tracking-widest ${
+                                                errors.confirm_password ? "border-red-400" : "border-slate-200/80"
                                             }`}
-                                        placeholder="••••••••"
-                                        {...register("confirm_password")}
-                                    />
+                                            placeholder="••••••••"
+                                            {...register("confirm_password")}
+                                        />
+                                    </div>
                                     {errors.confirm_password && (
-                                        <p className="mt-1 text-xs text-red-500">
-                                            {errors.confirm_password.message}
-                                        </p>
+                                        <p className="text-xs text-red-500 pl-1">{errors.confirm_password.message}</p>
                                     )}
                                 </div>
-                            </div>
 
-                            {error && (
-                                <div className="text-center text-sm text-red-600 bg-red-50 p-2 rounded">
-                                    {error}
+                                {/* Error message */}
+                                {error && (
+                                    <div className="text-center text-sm text-red-600 bg-red-50 p-3 rounded-lg border border-red-100">
+                                        {error}
+                                    </div>
+                                )}
+
+                                {/* Submit button */}
+                                <div className="pt-2">
+                                    <button
+                                        type="submit"
+                                        disabled={loading}
+                                        className="w-full py-3 px-4 rounded-lg bg-gradient-to-r from-blue-500 to-cyan-400 hover:from-blue-600 hover:to-cyan-500 text-white font-semibold shadow-lg shadow-blue-500/25 transform active:scale-[0.98] transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 flex items-center justify-center gap-2 disabled:opacity-70"
+                                    >
+                                        <span>{loading ? "Đang cập nhật..." : "Cập nhật"}</span>
+                                        {!loading && <ArrowRight size={16} />}
+                                    </button>
                                 </div>
-                            )}
+                            </form>
+                        )}
 
-                            <div>
-                                <button
-                                    type="submit"
-                                    disabled={loading}
-                                    className="group relative flex w-full justify-center rounded-md border border-transparent bg-gradient-to-r from-blue-500 to-cyan-500 px-4 py-2 text-sm font-medium text-white hover:from-blue-600 hover:to-cyan-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-75"
-                                >
-                                    {loading ? "Đang cập nhật..." : "Xác nhận & Thay đổi"}
-                                </button>
-                            </div>
-                        </form>
-                    )}
+                        {/* Back to home link */}
+                        <div className="mt-6 text-center border-t border-slate-100 pt-6">
+                            <button
+                                onClick={() => navigate("/app")}
+                                className="text-sm text-slate-500 hover:text-slate-800 font-medium transition-colors flex items-center justify-center gap-2 mx-auto"
+                            >
+                                <ArrowLeft size={16} />
+                                Quay lại trang chủ
+                            </button>
+                        </div>
+                    </div>
                 </div>
+
+                {/* Footer version */}
+                <p className="text-center text-xs text-slate-400 mt-8 font-medium tracking-widest uppercase">
+                    MIT Manager Security • Ver 3.0
+                </p>
             </div>
         </div>
     );

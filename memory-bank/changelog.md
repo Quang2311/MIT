@@ -1,0 +1,146 @@
+# Changelog — MITs Project
+
+---
+
+### [2026-03-06] - Staff Dashboard Overhaul (8-Element Architecture)
+- **Files changed:** `src/styles/layout.css`, `src/styles/components.css`, `src/styles/utilities.css`, `src/styles/progress.css` [NEW], `src/components/layout/Sidebar.tsx`, `src/components/layout/TopHeader.tsx`, `src/components/views/PersonalView.tsx`, `src/components/views/JourneyView.tsx` [NEW], `src/utils/chart-config.ts` [NEW], `src/pages/DashboardPage.tsx`, `src/index.css`
+- **Details:**
+  - Viết lại toàn bộ giao diện Dashboard dành riêng cho Staff (xóa Manager/System/Ticket views).
+  - **App Shell Flexbox:** `flex h-screen overflow-hidden` → aside `flex-shrink-0 h-full` + main `flex-1 flex-col` + `.content-scroll` (scrollable). Không dùng position:fixed.
+  - **Sidebar:** 4 menu Staff (Công việc / Hành trình / Kho sáng kiến / Cẩm nang), avatar popup (Cài đặt + Đăng xuất 1-click).
+  - **TopHeader:** Search + 🔔 Bell + ⚡ Đề xuất Tối ưu (gradient CTA).
+  - **PersonalView (Công việc):** 70/30 split-pane. Trái: MITs Oversized UI (h-16, text-base, space-y-4). Phải: Progress Ring + 🏆 Bảng Vàng + 🤖 AI + 💡 Cảm hứng mỗi ngày (5 quotes random).
+  - **JourneyView (Hành trình):** 3 khối — Gamification Hero Metrics (🌟 XP / 👑 Ngày xuất sắc / 🎯 Tỷ lệ), SVG Line Chart (bezier h-56), Accordion Nhật ký (task badges xanh/đỏ).
+  - **XP Scoring Logic:** +10 XP/task done, +50 bonus nếu 100%. Ghi chú trong chart-config.ts cho Supabase integration sau.
+  - **CSS Module:** layout.css, components.css, utilities.css, progress.css — không inline CSS.
+- **Status:** Hoàn thành
+
+### [2026-03-06] - Tích hợp Supabase: XP Gamification + Live Data
+- **Files changed:** `supabase/migrations/20260121000000_init_schema.sql`, `src/components/views/PersonalView.tsx`, `src/pages/DashboardPage.tsx`, `src/components/views/JourneyView.tsx`, `src/utils/chart-config.ts`, `src/styles/components.css`
+- **Details:**
+  - **SQL Migration:** ALTER TABLE `profiles` ADD `total_xp` (int4). ALTER TABLE `mit_sessions` ADD `xp_earned` (int4). RLS policies cho leaderboard read-all + sessions update.
+  - **Logic 1 (Leaderboard):** `PersonalView` query `profiles` ORDER BY `total_xp` DESC LIMIT 3.
+  - **Logic 2 (Checkout XP):** `DashboardPage.handleCheckout` tính XP (10/task + 50 bonus nếu 100%). Upsert `mit_sessions.xp_earned`. Increment `profiles.total_xp`. Task chưa xong → CSS `.task-card-warning`.
+  - **Logic 3 (Journey Live):** `JourneyView` fetch live data từ Supabase theo tháng filter. Hero metrics, Chart, Accordion history.
+  - **CSS:** Thêm `.task-card-warning` (nền đỏ nhạt, viền đỏ).
+- **Status:** Hoàn thành
+
+### [2026-03-06] - Hệ thống Thông báo (Notifications)
+- **Files changed:** `supabase/migrations/20260121000000_init_schema.sql`, `src/components/layout/TopHeader.tsx`
+- **Details:**
+  - **SQL:** Tạo bảng `notifications` (id, user_id, title, message, is_read, created_at) + RLS (select/update own, insert all).
+  - **TopHeader:** Xóa thanh Tìm kiếm. Xây dựng Dropdown chuông thông báo:
+    - Badge đỏ hiện số unread (ẩn khi = 0).
+    - Dropdown: top 10 thông báo, unread in đậm + chấm xanh, relative time.
+    - Nút "Đánh dấu đã đọc" → update `is_read = true`.
+  - Click ngoài dropdown → tự đóng.
+- **Status:** Hoàn thành
+
+### [2026-03-06] - Trang "Kho sáng kiến" (Ideas Repository)
+- **Files changed:** `src/components/views/IdeasView.tsx` [NEW], `src/pages/DashboardPage.tsx`
+- **Details:**
+  - Tạo component `IdeasView` thay placeholder "sắp ra mắt".
+  - Header: "💡 Kho sáng kiến của tôi" + sub-text.
+  - Tabs: Tất cả / ⏳ Đang chờ / ✅ Đã áp dụng (filter client-side).
+  - 3 Ticket Cards mock data với 3 trạng thái: Đang phân tích (vàng), Đang xây dựng (tím), Đã áp dụng (xanh lá).
+  - Card anatomy: mã ticket + ngày, status badge, tiêu đề + mô tả, tags pastel, admin feedback (tùy chọn).
+  - Wire vào DashboardPage thay placeholder.
+- **Status:** Hoàn thành
+
+### [2026-03-06] - Di chuyển nút "Đề xuất Tối ưu" sang Sidebar
+- **Files changed:** `src/components/layout/Sidebar.tsx`, `src/components/layout/TopHeader.tsx`, `src/pages/DashboardPage.tsx`
+- **Details:**
+  - **TopHeader:** Xóa nút "⚡ Đề xuất Tối ưu". Chỉ còn 🔔 chuông thông báo.
+  - **Sidebar:** Thêm CTA button phía trên avatar, bg-indigo-600, hover lift. Dùng `sidebar-label` → ẩn text khi sidebar thu gọn, chỉ giữ icon ⚡.
+  - **DashboardPage:** Pass `onOpenOptimization` prop xuống Sidebar.
+- **Status:** Hoàn thành
+
+### [2026-03-06] - Xóa Top Header, Bell → Sidebar
+- **Files changed:** `src/components/layout/Sidebar.tsx`, `src/pages/DashboardPage.tsx`, `src/styles/layout.css`
+- **Details:**
+  - **TopHeader:** Xóa hoàn toàn `<TopHeader>` component khỏi DashboardPage. Xóa `.top-header` CSS.
+  - **Sidebar:** Merge toàn bộ notification logic (state, fetch unread, dropdown, mark-read) từ TopHeader vào Sidebar.
+  - 🔔 Bell icon đặt cạnh Avatar (flex row justify-between). Dropdown xổ sang phải (`left-full bottom-0 ml-3`).
+  - **Main content:** Giờ chiếm full height, thêm `pt-8` padding top thay cho TopHeader.
+- **Status:** Hoàn thành
+
+### [2026-03-06] - Redesign Settings theo Stitch (Minimalist Tabbed Settings V3)
+- **Files changed:** `src/components/views/SettingsView.tsx`
+- **Stitch screen ref:** `054a7627732e4cbda06d40ec9feb1061` (Setting Staff)
+- **Details:**
+  - **Layout đổi:** Horizontal tab bar (không dùng left sidebar navigation nữa).
+  - **Tab Hồ sơ:** 2-column layout — Avatar picker (6-col grid + large preview + "Đang chọn") bên trái, Profile Preview card (TOP 5 badge, XP/Huy hiệu stats) bên phải. Identity grid 2×2 read-only full-width ở dưới.
+  - Tab icons: `person_outline`, `shield_moon`, `notifications_active`.
+  - Tab Bảo mật: CTA gradient + login history.
+  - Tab Thông báo: toggle switches.
+- **Status:** Hoàn thành
+
+### [2026-03-06] - Cập nhật Form Đăng ký + SQL Trigger tự tạo Profile
+- **Files changed:** `src/pages/RegisterPage.tsx`, `supabase/migrations/20260121000000_init_schema.sql`
+- **Details:**
+  - **SQL Trigger:** Tạo `handle_new_user()` + trigger `on_auth_user_created` — tự động INSERT `profiles` từ `raw_user_meta_data` khi auth user mới được tạo (`SECURITY DEFINER`).
+  - **RegisterPage:** Thêm ô "Mã nhân viên" (format cố định `TMxxxx`, regex validate). Truyền `full_name`, `employee_code`, `department` vào `signUp({ options.data })`. **Xóa** block `profiles.insert()` thủ công (fix lỗi RLS).
+  - Thứ tự form: Email → Họ tên → Mã NV → Phòng ban → Mật khẩu.
+- **Status:** Hoàn thành
+
+### [2026-03-06] - Trang Cài đặt tài khoản (Full-page Settings)
+- **Files changed:** `src/components/views/SettingsView.tsx` [NEW], `src/components/layout/Sidebar.tsx`, `src/pages/DashboardPage.tsx`
+- **Details:**
+  - **SettingsView:** Trang full-page 2 cột (sub-nav 1/4 + content 3/4):
+    - Tab "Hồ sơ": Avatar emoji picker 8x3 + save, identity read-only 2x2 grid (tên, mã NV, phòng, email).
+    - Tab "Bảo mật": Nút navigate `/change-password` + mock login history (3 entries).
+    - Tab "Thông báo": Toggle switches (Email, Daily reminder, Weekly report).
+  - **Sidebar:** Thêm ⚙️ "Cài đặt" vào menu chính. Popup "Cài đặt tài khoản" giờ chuyển view thay vì navigate.
+  - **DashboardPage:** Import + render `<SettingsView />` khi `activeView === "settings"`.
+- **Status:** Hoàn thành
+
+---
+
+### [2026-03-05] - Tích hợp Supabase cho Modal Đề xuất Tối ưu
+- **Files changed:** `src/components/DashboardLayout.tsx`
+- **Details:**
+  - Thêm form state management (processName, painPoints, timeWasted, softwareUsed, workflowDesc).
+  - Logic `handleOptimizationSubmit`: insert vào bảng `tickets` (status=open, department=BOD, ticket_code=OPT-YYYYMMDD-XXXX).
+  - Pain points chips có toggle selection (highlight khi chọn).
+  - Metadata (pain_points, time_wasted, software) lưu dạng JSON trong cột `description`.
+  - Loading spinner trên nút submit, Success Toast sau khi gửi, tự động đóng modal.
+  - Error handling: catch lỗi insert + thông báo user.
+- **Status:** Hoàn thành
+
+### [2026-03-05] - Post-Checkout Lock + Đề xuất Tối ưu (Stitch Design)
+- **Files changed:** `src/components/DashboardLayout.tsx`, `src/components/CheckoutSuccess.tsx`, `src/components/HistoryModal.tsx`, `src/pages/DashboardPage.tsx`
+- **Details:**
+  - Khóa toàn bộ quyền chỉnh sửa MITs (task cards + checkbox + checkout button) ngay sau khi bấm Check-out.
+  - Sau checkout, dashboard hiển thị ở trạng thái đóng băng (locked): task hiện rõ nhưng không thao tác được.
+  - Nút Checkout đổi thành "✓ Đã Check-out" (disabled, green styling).
+  - Chỉ "Phân tích AI" và "Đề xuất Tối ưu" vẫn tương tác được.
+  - Xóa nút bút chì (Sửa lại) trong HistoryModal — không cho phép chỉnh sửa sau checkout.
+  - Thêm nút "Quay lại giao diện" trong CheckoutSuccess để quay về dashboard (ở trạng thái locked).
+  - Thêm nút "⚡ Đề xuất Tối ưu" trong header + modal form matching Stitch design.
+  - Khi reload trang, nếu đã checkout hôm nay → hiển thị locked dashboard (không phải CheckoutSuccess).
+- **Status:** Hoàn thành
+
+### [2026-03-03] - Khởi tạo Memory Bank
+- **Files changed:** `memory-bank/projectbrief.md`, `memory-bank/productContext.md`, `memory-bank/systemPatterns.md`, `memory-bank/changelog.md`
+- **Details:** Tạo hệ thống Memory Bank theo megaprompt. Ghi nhận toàn bộ tech stack, business rules, patterns, và cấu trúc hiện tại của dự án.
+- **Status:** Hoàn thành
+
+### [2026-03-03] - Thay giao diện Dashboard bằng Stitch Design
+- **Files changed:** `src/components/DashboardLayout.tsx`, `src/index.css`
+- **Details:** Viết lại DashboardLayout theo design Stitch glassmorphism split-pane: task list bên trái (glassmorphism cards), SVG donut chart + performance bar bên phải. Thêm CSS utilities: glass-panel, glass-card, mesh-gradient-light.
+- **Status:** Hoàn thành
+
+### [2026-03-03] - Thay giao diện Đổi mật khẩu bằng Stitch Design
+- **Files changed:** `src/pages/ChangePasswordPage.tsx`
+- **Details:** Viết lại ChangePasswordPage theo design Stitch "MIT Change MK": glassmorphism card, decorative blur orbs, password strength indicator 4-level, gradient submit button.
+- **Status:** Hoàn thành
+
+### [2026-03-03] - Fix lỗi Foreign Key khi submit tasks
+- **Files changed:** `src/pages/DashboardPage.tsx`
+- **Details:** Thêm logic auto-create profile khi user vào Dashboard nếu chưa có profile trong DB. Fix lỗi `mit_tasks_user_id_fkey` violation. Thêm debug logging cho handleTasksSubmit.
+- **Status:** Hoàn thành
+
+### [2026-02-26] - Chuyển sang Supabase account mới
+- **Files changed:** `.env`, `src/integrations/supabase/client.ts`, `src/integrations/supabase/types.ts`, `supabase/migrations/20260121000000_init_schema.sql`, `src/pages/RegisterPage.tsx`
+- **Details:** Cập nhật URL/key Supabase, đồng bộ schema (enums, tickets table, RLS policies), fix email confirmation, debug auth flow.
+- **Status:** Hoàn thành
