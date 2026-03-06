@@ -2,6 +2,55 @@
 
 ---
 
+### [2026-03-06] - Tạo tài khoản + Duyệt nhân viên (Admin Provisioning)
+- **Files changed:** `src/components/views/AdminUsersView.tsx`, `supabase/functions/create-user/index.ts` [NEW]
+- **Details:**
+  - **Edge Function** `create-user`: Dùng `service_role` key → `auth.admin.createUser()` → không ảnh hưởng session Admin. Có JWT verify, profile insert, rollback khi lỗi.
+  - **Modal Thêm nhân viên:** Form 6 trường (Họ tên, Mã NV, Email, Mật khẩu, Phòng ban, Quyền hạn) → gọi Edge Function.
+  - **Cột Trạng thái:** Badge xanh "Đang hoạt động" (active) / Badge vàng "Chờ duyệt" (pending) + nút "✅ Duyệt" auto-save.
+  - **Stat cards:** Thay "Nhân viên" → "Chờ duyệt" (card thứ 4).
+  - SQL cần chạy: `ALTER TABLE profiles ADD COLUMN status text DEFAULT 'active'`
+- **Testing:** `npx tsc --noEmit` passed ✅
+
+---
+
+### [2026-03-06] - Trang Quản lý Nhân sự cho Admin
+- **Files changed:** `src/components/views/AdminUsersView.tsx` [NEW], `src/components/layout/Sidebar.tsx`, `src/pages/DashboardPage.tsx`
+- **Details:**
+  - Tạo mới `AdminUsersView.tsx`: 4 stat cards (Tổng/Staff/Manager/Admin), search bar, data table, role dropdown auto-save, toast notifications.
+  - Thêm nhóm **"Quản trị Hệ thống"** vào Sidebar (chỉ hiện khi `role === 'admin'`). Admin cũng thấy menu Manager.
+  - Routing: `activeView === "admin-users"` render `AdminUsersView`.
+  - SQL cần chạy: `ALTER TYPE user_role ADD VALUE 'admin'` + RLS policies cho Admin.
+- **Testing:** `npx tsc --noEmit` passed ✅
+
+---
+
+### [2026-03-06] - Bộ lọc Ngày tự chọn + Export Excel/PDF (Team Overview)
+- **Files changed:** `src/components/views/TeamOverviewView.tsx`, `package.json`
+- **Packages added:** `xlsx`, `jspdf`, `jspdf-autotable`
+- **Details:**
+  - Thêm bộ lọc ngày: 3 preset nhanh (7/14/30 ngày) + 2 input date tùy chọn (Từ/Đến).
+  - Biểu đồ tự động refetch khi thay đổi khoảng thời gian, X-axis tự điều chỉnh interval khi >14 ngày.
+  - **Export Excel:** File `.xlsx` gồm 2 sheet (Xu hướng MITs + Bảng xếp hạng XP), cột có width chuẩn.
+  - **Export PDF:** File `.pdf` gồm 2 bảng (Xu hướng + XP), header màu indigo.
+  - Tách riêng fetch profiles (1 lần) và fetch trend data (theo ngày) để tối ưu performance.
+- **Testing:** `npx tsc --noEmit` passed ✅
+
+---
+
+### [2026-03-06] - Biểu đồ Xu hướng MITs 7 ngày (Team Overview)
+- **Files changed:** `src/components/views/TeamOverviewView.tsx`, `package.json`
+- **Details:**
+  - Cài thêm `recharts` để render biểu đồ đường tương tác.
+  - Thêm **AreaChart** (line chart + gradient fill) vào giữa 3 Summary Cards và Bảng xếp hạng XP.
+  - Fetch batch toàn bộ `mit_tasks` 7 ngày gần nhất (1 query thay vì N queries) → tính tỉ lệ hoàn thành theo ngày.
+  - Đường cong mềm (`monotone`), fill gradient indigo, custom Tooltip hiện ngày + tỉ lệ + số lượng.
+  - Fallback "Chưa có dữ liệu 7 ngày qua" khi không có task nào.
+- **Testing:** `npx tsc --noEmit` passed ✅
+
+---
+
+
 ### [2026-03-06] - Staff Dashboard Overhaul (8-Element Architecture)
 - **Files changed:** `src/styles/layout.css`, `src/styles/components.css`, `src/styles/utilities.css`, `src/styles/progress.css` [NEW], `src/components/layout/Sidebar.tsx`, `src/components/layout/TopHeader.tsx`, `src/components/views/PersonalView.tsx`, `src/components/views/JourneyView.tsx` [NEW], `src/utils/chart-config.ts` [NEW], `src/pages/DashboardPage.tsx`, `src/index.css`
 - **Details:**
@@ -62,6 +111,19 @@
   - **Sidebar:** Merge toàn bộ notification logic (state, fetch unread, dropdown, mark-read) từ TopHeader vào Sidebar.
   - 🔔 Bell icon đặt cạnh Avatar (flex row justify-between). Dropdown xổ sang phải (`left-full bottom-0 ml-3`).
   - **Main content:** Giờ chiếm full height, thêm `pt-8` padding top thay cho TopHeader.
+- **Status:** Hoàn thành
+
+### [2026-03-06] - Sidebar Manager + RLS phân quyền phòng ban
+- **Files changed:** `src/components/layout/Sidebar.tsx`, `src/pages/DashboardPage.tsx`, `supabase/migrations/20260121000000_init_schema.sql`
+- **Files added:** `src/components/views/TeamOverviewView.tsx`, `src/components/views/TeamJournalView.tsx`
+- **Details:**
+  - **Sidebar UI:** 3 nhóm menu (CÁ NHÂN / QUẢN LÝ TEAM / HỆ THỐNG). Nhóm QUẢN LÝ TEAM chỉ hiện khi `role = manager/executive`.
+  - **TeamOverviewView:** Dashboard realtime — danh sách NV cùng phòng ban + tỉ lệ MITs hôm nay (progress bar) + XP leaderboard.
+  - **TeamJournalView:** 2 tabs:
+    - Tab 1 "Lịch sử MITs": Date picker + danh sách MITs mỗi NV, 🟢 = xong, 🔴 = miss.
+    - Tab 2 "Sáng kiến Đội nhóm": Tickets read-only (KHÔNG có nút Duyệt/Từ chối).
+  - **RLS Policies:** 4 policies mới (profiles, mit_tasks, mit_sessions, tickets) — Manager SELECT cùng `department`. Tickets chỉ SELECT, KHÔNG UPDATE/DELETE.
+  - **DashboardPage:** Fetch `role` + `department` từ profiles, truyền xuống Sidebar + views.
 - **Status:** Hoàn thành
 
 ### [2026-03-06] - Redesign Settings theo Stitch (Minimalist Tabbed Settings V3)

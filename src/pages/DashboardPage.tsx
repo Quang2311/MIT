@@ -10,6 +10,9 @@ import { PersonalView } from "@/components/views/PersonalView";
 import { JourneyView } from "@/components/views/JourneyView";
 import { IdeasView } from "@/components/views/IdeasView";
 import { SettingsView } from "@/components/views/SettingsView";
+import { TeamOverviewView } from "@/components/views/TeamOverviewView";
+import { TeamJournalView } from "@/components/views/TeamJournalView";
+import { AdminUsersView } from "@/components/views/AdminUsersView";
 
 /* Existing modals */
 import { AIAnalysisModal } from "@/components/AIAnalysisModal";
@@ -34,6 +37,8 @@ export const DashboardPage = () => {
     const [tasks, setTasks] = useState<Task[]>([]);
     const [userId, setUserId] = useState<string | null>(null);
     const [userEmail, setUserEmail] = useState("");
+    const [userRole, setUserRole] = useState("member");
+    const [userDepartment, setUserDepartment] = useState<string | null>(null);
     const [isCheckedOut, setIsCheckedOut] = useState(false);
     const [checkoutStats, setCheckoutStats] = useState({ completedCount: 0, totalCount: 0, completionRate: 0 });
 
@@ -64,6 +69,19 @@ export const DashboardPage = () => {
             if (!user) { navigate("/login"); return; }
             setUserId(user.id);
             setUserEmail(user.email || "");
+
+            // Fetch role + department
+            const { data: profile, error: profileError } = await (supabase as any)
+                .from("profiles")
+                .select("role, department")
+                .eq("id", user.id)
+                .single();
+            console.log("[DashboardPage] auth user.id:", user.id);
+            console.log("[DashboardPage] profile fetch:", profile, "error:", profileError);
+            if (profile) {
+                setUserRole(profile.role || "member");
+                setUserDepartment(profile.department || null);
+            }
 
             const today = getTodayDate();
             const { data: session } = await supabase
@@ -240,7 +258,7 @@ export const DashboardPage = () => {
 
     return (
         <div className="app-shell">
-            <Sidebar activeView={activeView} onViewChange={setActiveView} userEmail={userEmail} onLogout={handleLogout} onOpenOptimization={() => setShowOptimizationModal(true)} />
+            <Sidebar activeView={activeView} onViewChange={setActiveView} userEmail={userEmail} userRole={userRole} onLogout={handleLogout} onOpenOptimization={() => setShowOptimizationModal(true)} />
 
             <div className="main-content">
                 {/* Scrollable content area — no TopHeader, starts from top */}
@@ -262,6 +280,9 @@ export const DashboardPage = () => {
                             </div>
                         </div>
                     )}
+                    {activeView === "team-overview" && <TeamOverviewView userDepartment={userDepartment} />}
+                    {activeView === "team-journal" && <TeamJournalView userDepartment={userDepartment} />}
+                    {activeView === "admin-users" && <AdminUsersView />}
                     {activeView === "settings" && <SettingsView />}
                 </div>
             </div>

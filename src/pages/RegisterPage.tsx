@@ -28,7 +28,7 @@ const registerSchema = z.object({
     employee_code: z
         .string()
         .min(1, "Vui lòng nhập mã nhân viên")
-        .regex(/^TM\d{4}$/, "Mã NV phải theo format TMxxxx (VD: TM0142)"),
+        .regex(/^TM\d+$/i, "Mã NV phải bắt đầu bằng TM + số (VD: TM0142)"),
     department: z.string().min(1, "Vui lòng chọn phòng ban"),
     password: z.string().min(6, "Mật khẩu phải có ít nhất 6 ký tự"),
 });
@@ -215,7 +215,7 @@ const RegisterPage = () => {
                                             : "border-slate-200 dark:border-slate-700"
                                             }`}
                                         placeholder="TM0142"
-                                        maxLength={6}
+                                        maxLength={10}
                                         {...register("employee_code")}
                                     />
                                 </div>

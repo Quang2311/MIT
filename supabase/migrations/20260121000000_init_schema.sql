@@ -168,3 +168,64 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 CREATE OR REPLACE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+-- ============================================================
+-- HELPER FUNCTIONS (SECURITY DEFINER — bypasses RLS to avoid recursion)
+-- ============================================================
+
+CREATE OR REPLACE FUNCTION public.get_my_role()
+RETURNS user_role
+LANGUAGE sql
+SECURITY DEFINER
+STABLE
+AS $$
+  SELECT role FROM public.profiles WHERE id = auth.uid()
+$$;
+
+CREATE OR REPLACE FUNCTION public.get_my_department()
+RETURNS department_code
+LANGUAGE sql
+SECURITY DEFINER
+STABLE
+AS $$
+  SELECT department FROM public.profiles WHERE id = auth.uid()
+$$;
+
+-- ============================================================
+-- MANAGER DEPARTMENT-SCOPED RLS (Fixed 2026-03-06)
+-- Uses helper functions to avoid infinite recursion on profiles.
+-- ============================================================
+
+-- Manager: view profiles in same department (NO self-reference!)
+CREATE POLICY "Managers can view department profiles" ON public.profiles
+  FOR SELECT USING (
+    public.get_my_role() IN ('manager', 'executive')
+    AND public.get_my_department() = department
+  );
+
+-- Manager: view mit_tasks in same department
+CREATE POLICY "Managers can view department tasks" ON public.mit_tasks
+  FOR SELECT USING (
+    public.get_my_role() IN ('manager', 'executive')
+    AND public.get_my_department() = (
+      SELECT department FROM public.profiles WHERE id = mit_tasks.user_id
+    )
+  );
+
+-- Manager: view mit_sessions in same department
+CREATE POLICY "Managers can view department sessions" ON public.mit_sessions
+  FOR SELECT USING (
+    public.get_my_role() IN ('manager', 'executive')
+    AND public.get_my_department() = (
+      SELECT department FROM public.profiles WHERE id = mit_sessions.user_id
+    )
+  );
+
+-- Manager: view tickets in same department (READ-ONLY, no UPDATE/DELETE)
+CREATE POLICY "Managers can view department tickets" ON public.tickets
+  FOR SELECT USING (
+    public.get_my_role() IN ('manager', 'executive')
+    AND public.get_my_department() = (
+      SELECT department FROM public.profiles WHERE id = tickets.creator_id
+    )
+  );
