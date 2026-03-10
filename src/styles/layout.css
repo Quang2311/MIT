@@ -109,6 +109,14 @@
   display: none;
 }
 
+/* ===== MASTER-DETAIL PANE: 35% list + 65% detail ===== */
+.master-detail-pane {
+  display: grid;
+  grid-template-columns: 35fr 65fr;
+  gap: 20px;
+  min-height: 0;
+}
+
 /* ===== USER POPUP ===== */
 .user-popup {
   position: absolute;

@@ -2,6 +2,104 @@
 
 ---
 
+### [2026-03-10] - Tối ưu Toolbar + Grid + Pagination + Modal — Kho sáng kiến
+
+**File:** `src/components/views/IdeasView.tsx`
+
+- **Stats Summary**: 3 thẻ tổng quan (Đang chờ / Đang xử lý / Đã áp dụng) với icon pastel
+- **Toolbar**: Search + Dropdown filter + CTA "Thêm sáng kiến mới"
+- **Grid 3×2**: Card có color accent bar, pain preview, hover effects (shadow + translateY)
+- **Empty State**: Icon lớn, mô tả rõ ràng, CTA "Tạo đề xuất đầu tiên"
+- **Pagination**: Trước/1/2/3/Sau, active highlight
+- **Modal**: Popup căn giữa via `createPortal` (thay Side Panel), bo góc `rounded-3xl`, gradient icon header
+
+---
+
+### [2026-03-10] - Tối ưu Sidebar + Xây dựng Kho sáng kiến hoàn chỉnh
+
+**Files:** `Sidebar.tsx`, `DashboardPage.tsx`, `IdeasView.tsx`
+
+- **Sidebar**: Xóa nút CTA "⚡ Đề xuất Tối ưu" + prop `onOpenOptimization`
+- **DashboardPage**: Xóa 8 optimization states, 3 handlers, modal JSX, toast JSX
+- **IdeasView**: Rebuild từ mock → Supabase real data, header + "➕ Thêm đề xuất", 4-tab filter, modal form 5 trường (Tiêu đề, Nỗi đau, Thời gian lãng phí dropdown, Phần mềm, Mô tả bước thủ công)
+
+---
+
+### [2026-03-10] - Tái cấu trúc Nhật ký Đội nhóm — Đơn mục đích
+
+**File:** `TeamJournalView.tsx`
+
+- Xóa toàn bộ tab "Sáng kiến Đội nhóm": interface, state, fetch, helpers, tab bar, content
+- Trang chỉ còn Lịch sử MITs: date picker + member list + 🟢🔴 indicators
+- ~330 dòng → ~155 dòng
+
+---
+
+### [2026-03-10] - Refactor Bộ lọc Thời gian — Clean UI + Default "Hôm nay"
+
+**File:** `src/components/views/TeamOverviewView.tsx`
+
+- **Default "Hôm nay"**: Trang mặc định hiển thị dữ liệu ngày hiện tại thay vì 7 ngày
+- **Thu gọn Header**: Xóa chùm nút 7/14/30 + date inputs → 2 dropdown (Phòng ban + Thời gian)
+- **Dual Chart Mode**: "Hôm nay" → BarChart ngang (so sánh % phòng ban). Range → AreaChart xu hướng
+
+---
+
+### [2026-03-10] - Fix Task Completion DB Persistence
+
+**File:** `src/pages/DashboardPage.tsx`
+
+- **handleToggleTask**: Thêm error handling, chỉ update UI nếu DB thành công
+- **handleCheckout**: Thêm batch update `mit_tasks.is_completed` trước khi tạo session
+
+---
+
+### [2026-03-10] - Refactor Trang Tổng quan Team (Global Filters + Metric Cards)
+- **Files changed:** `src/components/views/TeamOverviewView.tsx`, `src/pages/DashboardPage.tsx`
+- **Details:**
+  - **Global Filters di chuyển lên Header:** Dept Dropdown (Admin: xem toàn công ty hoặc dept cụ thể) + Quick Presets (7/14/30 ngày) + Custom Date Range. Xóa filters khỏi Chart.
+  - **3 Thẻ thống kê mới:**
+    - 🎯 Tỉ lệ Hoàn thành MITs (% thực tế trong kỳ)
+    - ⚠️ MITs Tồn đọng (số task chưa hoàn thành, text đỏ)
+    - 📊 Tiêu điểm Hiệu suất (🏆 Dept dẫn đầu vs 🚩 Dept cần chú ý)
+  - **Data fetch refactor:** `refreshDashboardData()` đồng bộ toàn trang — thay đổi filter → recalc 3 thẻ + redraw Chart + re-render Leaderboard.
+  - **Leaderboard nâng cấp:** thêm cột Phòng ban, hiển thị tiến độ trong kỳ (period-based) thay vì chỉ hôm nay, sắp xếp theo tỉ lệ hoàn thành.
+
+---
+
+### [2026-03-10] - Luồng Phê duyệt Pending Approval + Màn hình Chờ
+- **Files changed:** `src/components/PendingApprovalScreen.tsx` [NEW], `src/pages/DashboardPage.tsx`, `src/components/views/AdminUsersView.tsx`
+- **Details:**
+  - **PendingApprovalScreen (Waiting Room):** Trang full-screen cho user pending — KHÔNG Sidebar, KHÔNG Header. Card giữa màn hình với icon ⏳, tiêu đề "Tài khoản đang chờ phê duyệt", nút Đăng xuất.
+  - **DashboardPage Router Guard:**
+    - Fetch `status` từ `profiles` table (thêm vào query `role, department, status`).
+    - Nếu `status !== 'active'` → render `PendingApprovalScreen`, KHÔNG load tasks/sessions.
+    - Nếu không có profile → coi như pending.
+  - **AdminUsersView Enhancements:**
+    - Pending users sorted lên đầu danh sách.
+    - Hàng pending highlight `bg-yellow-50/60`.
+    - Nút "✅ Phê duyệt" nâng cấp thành Primary Button (bg-emerald-500, text-white, shadow).
+- **Security:** User pending TUYỆT ĐỐI không thấy Sidebar, Header, hay dữ liệu nội bộ.
+
+---
+
+### [2026-03-10] - Trang Quản lý Ticket cho Admin (Master-Detail Layout)
+- **Files changed:** `src/components/views/AdminTicketsView.tsx` [NEW], `src/components/layout/Sidebar.tsx`, `src/pages/DashboardPage.tsx`, `src/styles/layout.css`
+- **Details:**
+  - **AdminTicketsView:** Giao diện Admin quản lý ticket dạng Split-pane (Master-Detail 35/65):
+    - **Header:** 4 stat cards mini đếm ticket theo trạng thái (Chờ tiếp nhận / Đang phân tích / Đang xây luồng / Đã triển khai). Click để filter.
+    - **Cột trái (Master List):** Thanh search + icon filter, danh sách card tickets với active state (ring-2 indigo highlight). Hiện mã ticket, badge trạng thái, tiêu đề, người gửi, thời gian.
+    - **Cột phải (Detail View):** Header chi tiết (mã + badge + tiêu đề), thông tin người gửi (tên + phòng ban), nội dung chính trên nền xám (pain points, thời gian lãng phí, ứng dụng liên quan) — parse từ JSON `description`.
+    - **Khối Admin Actions:** Select status, textarea admin_feedback, nút "💾 Lưu thay đổi" (gradient primary button).
+    - **KHÔNG dùng Modal/Popup** — toàn bộ inline.
+  - **Sidebar:** Thêm "Quản lý Ticket" (icon: `confirmation_number`) vào nhóm Admin.
+  - **DashboardPage:** Route `admin-tickets` → `AdminTicketsView`.
+  - **layout.css:** Thêm `.master-detail-pane` (grid 35fr/65fr).
+  - Mock data 5 tickets với 4 trạng thái, format JSON giống `handleOptimizationSubmit`.
+- **Testing:** `npx tsc --noEmit` passed ✅
+
+---
+
 ### [2026-03-06] - Tạo tài khoản + Duyệt nhân viên (Admin Provisioning)
 - **Files changed:** `src/components/views/AdminUsersView.tsx`, `supabase/functions/create-user/index.ts` [NEW]
 - **Details:**

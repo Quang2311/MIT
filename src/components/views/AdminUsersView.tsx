@@ -152,15 +152,22 @@ export const AdminUsersView = () => {
     };
 
     /* Filtered users */
-    const filtered = users.filter(u => {
-        if (!search.trim()) return true;
-        const q = search.toLowerCase();
-        return (
-            (u.full_name || "").toLowerCase().includes(q) ||
-            (u.employee_code || "").toLowerCase().includes(q) ||
-            (u.email || "").toLowerCase().includes(q)
-        );
-    });
+    const filtered = users
+        .filter(u => {
+            if (!search.trim()) return true;
+            const q = search.toLowerCase();
+            return (
+                (u.full_name || "").toLowerCase().includes(q) ||
+                (u.employee_code || "").toLowerCase().includes(q) ||
+                (u.email || "").toLowerCase().includes(q)
+            );
+        })
+        .sort((a, b) => {
+            // Pending users luôn ở đầu
+            if (a.status === "pending" && b.status !== "pending") return -1;
+            if (a.status !== "pending" && b.status === "pending") return 1;
+            return 0;
+        });
 
     /* Stats */
     const totalUsers = users.length;
@@ -281,7 +288,7 @@ export const AdminUsersView = () => {
                             return (
                                 <div
                                     key={user.id}
-                                    className={`grid grid-cols-12 gap-4 px-6 py-4 items-center hover:bg-slate-50/50 transition-colors ${isUpdating || isApproving ? "opacity-60" : ""}`}
+                                    className={`grid grid-cols-12 gap-4 px-6 py-4 items-center transition-colors ${isPending ? "bg-yellow-50/60 hover:bg-yellow-50" : "hover:bg-slate-50/50"} ${isUpdating || isApproving ? "opacity-60" : ""}`}
                                 >
                                     {/* Info: Avatar + Name + Email */}
                                     <div className="col-span-3 flex items-center gap-3 min-w-0">
@@ -349,14 +356,14 @@ export const AdminUsersView = () => {
                                                 <button
                                                     onClick={() => approveUser(user.id)}
                                                     disabled={isApproving}
-                                                    className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-200 hover:bg-emerald-100 transition-colors disabled:opacity-50"
+                                                    className="flex items-center gap-1.5 px-3.5 py-1.5 text-[12px] font-bold rounded-lg bg-emerald-500 text-white shadow-md shadow-emerald-500/25 hover:bg-emerald-600 hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:transform-none"
                                                 >
                                                     {isApproving ? (
                                                         <div className="w-3 h-3 border-2 border-emerald-300 border-t-emerald-600 rounded-full anim-spin" />
                                                     ) : (
                                                         <span className="material-symbols-outlined text-[14px]">check_circle</span>
                                                     )}
-                                                    Duyệt
+                                                    ✅ Phê duyệt
                                                 </button>
                                             </>
                                         ) : (

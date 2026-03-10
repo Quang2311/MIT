@@ -7,7 +7,6 @@ interface SidebarProps {
     userEmail: string;
     userRole?: string;
     onLogout: () => void;
-    onOpenOptimization: () => void;
 }
 
 interface Notification {
@@ -32,6 +31,7 @@ const managerMenu = [
 
 const adminMenu = [
     { id: "admin-users", icon: "manage_accounts", label: "Quản lý Nhân sự" },
+    { id: "admin-tickets", icon: "confirmation_number", label: "Quản lý Ticket" },
 ];
 
 const systemMenu = [
@@ -39,7 +39,7 @@ const systemMenu = [
     { id: "settings", icon: "settings", label: "Cài đặt" },
 ];
 
-export const Sidebar = ({ activeView, onViewChange, userEmail, userRole = "member", onLogout, onOpenOptimization }: SidebarProps) => {
+export const Sidebar = ({ activeView, onViewChange, userEmail, userRole = "member", onLogout }: SidebarProps) => {
     const [showPopup, setShowPopup] = useState(false);
     const popupRef = useRef<HTMLDivElement>(null);
 
@@ -215,17 +215,6 @@ export const Sidebar = ({ activeView, onViewChange, userEmail, userRole = "membe
                         <MenuButton key={item.id} item={item} />
                     ))}
                 </nav>
-
-                {/* CTA: Đề xuất Tối ưu */}
-                <div className="mx-3 mb-3">
-                    <button
-                        onClick={onOpenOptimization}
-                        className="w-full flex justify-center items-center gap-2 px-3 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-[13px] shadow-md shadow-indigo-500/25 hover:-translate-y-0.5 transition-all"
-                    >
-                        <span className="text-[14px] flex-shrink-0">⚡</span>
-                        <span className="sidebar-label">Đề xuất Tối ưu</span>
-                    </button>
-                </div>
 
                 {/* User Profile + Bell */}
                 <div className="border-t border-slate-100/80 px-2.5 py-3 relative" ref={popupRef}>

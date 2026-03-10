@@ -13,6 +13,8 @@ import { SettingsView } from "@/components/views/SettingsView";
 import { TeamOverviewView } from "@/components/views/TeamOverviewView";
 import { TeamJournalView } from "@/components/views/TeamJournalView";
 import { AdminUsersView } from "@/components/views/AdminUsersView";
+import { AdminTicketsView } from "@/components/views/AdminTicketsView";
+import { PendingApprovalScreen } from "@/components/PendingApprovalScreen";
 
 /* Existing modals */
 import { AIAnalysisModal } from "@/components/AIAnalysisModal";
@@ -39,22 +41,13 @@ export const DashboardPage = () => {
     const [userEmail, setUserEmail] = useState("");
     const [userRole, setUserRole] = useState("member");
     const [userDepartment, setUserDepartment] = useState<string | null>(null);
+    const [userStatus, setUserStatus] = useState<string>("loading");
     const [isCheckedOut, setIsCheckedOut] = useState(false);
     const [checkoutStats, setCheckoutStats] = useState({ completedCount: 0, totalCount: 0, completionRate: 0 });
 
     /* Modals */
     const [showAIModal, setShowAIModal] = useState(false);
     const [showHistoryModal, setShowHistoryModal] = useState(false);
-    const [showOptimizationModal, setShowOptimizationModal] = useState(false);
-
-    /* Optimization form */
-    const [optProcessName, setOptProcessName] = useState("");
-    const [optPainPoints, setOptPainPoints] = useState<string[]>([]);
-    const [optTimeWasted, setOptTimeWasted] = useState("1-2 giờ / tuần");
-    const [optSoftwareUsed, setOptSoftwareUsed] = useState("");
-    const [optWorkflowDesc, setOptWorkflowDesc] = useState("");
-    const [isSubmittingOpt, setIsSubmittingOpt] = useState(false);
-    const [showSuccessToast, setShowSuccessToast] = useState(false);
 
     /* Helpers */
     const getTodayDate = () => {
@@ -70,10 +63,10 @@ export const DashboardPage = () => {
             setUserId(user.id);
             setUserEmail(user.email || "");
 
-            // Fetch role + department
+            // Fetch role + department + status
             const { data: profile, error: profileError } = await (supabase as any)
                 .from("profiles")
-                .select("role, department")
+                .select("role, department, status")
                 .eq("id", user.id)
                 .single();
             console.log("[DashboardPage] auth user.id:", user.id);
@@ -81,6 +74,18 @@ export const DashboardPage = () => {
             if (profile) {
                 setUserRole(profile.role || "member");
                 setUserDepartment(profile.department || null);
+                setUserStatus(profile.status || "pending");
+
+                // ROUTER GUARD: chặn user pending — không load tasks/sessions
+                if (profile.status !== "active") {
+                    setPageState("dashboard");
+                    return;
+                }
+            } else {
+                // Không có profile → coi như pending
+                setUserStatus("pending");
+                setPageState("dashboard");
+                return;
             }
 
             const today = getTodayDate();
@@ -141,9 +146,16 @@ export const DashboardPage = () => {
         const task = tasks.find((t) => t.id === taskId);
         if (!task) return;
         const newCompleted = !task.completed;
-        await supabase.from("mit_tasks")
+
+        // Update DB trước, chỉ update UI nếu thành công
+        const { error } = await (supabase as any).from("mit_tasks")
             .update({ is_completed: newCompleted, completed_at: newCompleted ? new Date().toISOString() : null })
             .eq("id", taskId);
+
+        if (error) {
+            console.error("[ToggleTask] DB update failed:", error);
+            return; // KHÔNG update UI nếu DB thất bại
+        }
         setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, completed: newCompleted } : t)));
     };
 
@@ -153,6 +165,24 @@ export const DashboardPage = () => {
         const cc = tasks.filter((t) => t.completed).length;
         const tc = tasks.length;
         const cr = tc > 0 ? Math.round((cc / tc) * 100) : 0;
+
+        // ===== PERSIST TASK COMPLETION TO DB =====
+        // Batch update tất cả tasks đã tick → is_completed = true trong DB
+        const completedIds = tasks.filter((t) => t.completed).map((t) => t.id);
+        const uncompletedIds = tasks.filter((t) => !t.completed).map((t) => t.id);
+
+        if (completedIds.length > 0) {
+            const { error: completeErr } = await (supabase as any).from("mit_tasks")
+                .update({ is_completed: true, completed_at: new Date().toISOString() })
+                .in("id", completedIds);
+            if (completeErr) console.error("[Checkout] Failed to update completed tasks:", completeErr);
+        }
+        if (uncompletedIds.length > 0) {
+            const { error: uncompleteErr } = await (supabase as any).from("mit_tasks")
+                .update({ is_completed: false, completed_at: null })
+                .in("id", uncompletedIds);
+            if (uncompleteErr) console.error("[Checkout] Failed to update uncompleted tasks:", uncompleteErr);
+        }
 
         // ===== XP CALCULATION =====
         // +10 XP per completed task, +50 bonus if 100% completion
@@ -198,27 +228,6 @@ export const DashboardPage = () => {
 
     const handleBackToDashboard = () => setPageState("dashboard");
 
-    /* Optimization */
-    const togglePainPoint = (tag: string) => setOptPainPoints((p) => p.includes(tag) ? p.filter((x) => x !== tag) : [...p, tag]);
-    const resetOptForm = () => { setOptProcessName(""); setOptPainPoints([]); setOptTimeWasted("1-2 giờ / tuần"); setOptSoftwareUsed(""); setOptWorkflowDesc(""); };
-    const handleOptimizationSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!optProcessName.trim() || !userId) return;
-        setIsSubmittingOpt(true);
-        try {
-            const code = `OPT-${getTodayDate().replace(/-/g, "")}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
-            const desc = JSON.stringify({ workflow_description: optWorkflowDesc, pain_points: optPainPoints, time_wasted: optTimeWasted, software_used: optSoftwareUsed });
-            const { error } = await supabase.from("tickets").insert({
-                ticket_code: code, creator_id: userId, department_in_charge: "BOD" as any,
-                title: `[Tối ưu] ${optProcessName.trim()}`, description: desc,
-                status: "open" as any, priority: "medium" as any,
-            });
-            if (error) { alert("Lỗi: " + error.message); return; }
-            setShowOptimizationModal(false); resetOptForm();
-            setShowSuccessToast(true); setTimeout(() => setShowSuccessToast(false), 3000);
-        } catch { alert("Có lỗi xảy ra."); } finally { setIsSubmittingOpt(false); }
-    };
-
     /* ===== RENDER ===== */
 
     if (pageState === "loading") {
@@ -230,6 +239,11 @@ export const DashboardPage = () => {
                 </div>
             </div>
         );
+    }
+
+    // ★ ROUTER GUARD: user pending → Waiting Room (KHÔNG Sidebar, KHÔNG Header)
+    if (userStatus !== "active" && userStatus !== "loading") {
+        return <PendingApprovalScreen />;
     }
 
     if (pageState === "input") {
@@ -258,7 +272,7 @@ export const DashboardPage = () => {
 
     return (
         <div className="app-shell">
-            <Sidebar activeView={activeView} onViewChange={setActiveView} userEmail={userEmail} userRole={userRole} onLogout={handleLogout} onOpenOptimization={() => setShowOptimizationModal(true)} />
+            <Sidebar activeView={activeView} onViewChange={setActiveView} userEmail={userEmail} userRole={userRole} onLogout={handleLogout} />
 
             <div className="main-content">
                 {/* Scrollable content area — no TopHeader, starts from top */}
@@ -280,9 +294,10 @@ export const DashboardPage = () => {
                             </div>
                         </div>
                     )}
-                    {activeView === "team-overview" && <TeamOverviewView userDepartment={userDepartment} />}
+                    {activeView === "team-overview" && <TeamOverviewView userDepartment={userDepartment} userRole={userRole} />}
                     {activeView === "team-journal" && <TeamJournalView userDepartment={userDepartment} />}
                     {activeView === "admin-users" && <AdminUsersView />}
+                    {activeView === "admin-tickets" && <AdminTicketsView />}
                     {activeView === "settings" && <SettingsView />}
                 </div>
             </div>
@@ -291,99 +306,7 @@ export const DashboardPage = () => {
             <AIAnalysisModal isOpen={showAIModal} onClose={() => setShowAIModal(false)} completedCount={completedCount} totalCount={totalCount} />
             <HistoryModal isOpen={showHistoryModal} onClose={() => setShowHistoryModal(false)} />
 
-            {/* Optimization Modal */}
-            {showOptimizationModal && (
-                <div className="opt-modal-overlay">
-                    <form onSubmit={handleOptimizationSubmit} className="opt-modal-content anim-scale-in">
-                        <div className="p-6 border-b border-gray-100">
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                    <span className="text-2xl">🚀</span>
-                                    <div>
-                                        <h2 className="text-lg font-bold text-slate-900">Đề xuất Tự động hóa</h2>
-                                        <p className="text-sm text-slate-500">Báo cáo tác vụ thủ công để chúng tôi giúp bạn tự động hóa.</p>
-                                    </div>
-                                </div>
-                                <button type="button" onClick={() => { setShowOptimizationModal(false); resetOptForm(); }} className="text-slate-400 hover:text-slate-600 p-1">
-                                    <span className="material-symbols-outlined">close</span>
-                                </button>
-                            </div>
-                        </div>
-                        <div className="p-6 space-y-5">
-                            <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1.5">Tên quy trình *</label>
-                                <input type="text" value={optProcessName} onChange={(e) => setOptProcessName(e.target.value)}
-                                    placeholder="VD: Báo cáo doanh thu hàng tuần..."
-                                    className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent" required />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-2">Nỗi đau lớn nhất</label>
-                                <div className="flex flex-wrap gap-2">
-                                    {["Nhập liệu thủ công", "Copy-paste nhiều nền tảng", "Chờ duyệt lâu", "Dễ sai sót"].map((tag) => (
-                                        <button key={tag} type="button" onClick={() => togglePainPoint(tag)}
-                                            className={`pain-chip ${optPainPoints.includes(tag) ? "pain-chip-selected" : ""}`}>
-                                            {tag}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1.5">Thời gian tiêu tốn</label>
-                                    <select value={optTimeWasted} onChange={(e) => setOptTimeWasted(e.target.value)}
-                                        className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
-                                        <option>1-2 giờ / tuần</option>
-                                        <option>3-5 giờ / tuần</option>
-                                        <option>5+ giờ / tuần</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1.5">Phần mềm đang dùng *</label>
-                                    <input type="text" value={optSoftwareUsed} onChange={(e) => setOptSoftwareUsed(e.target.value)}
-                                        placeholder="Excel, Jira, SAP..."
-                                        className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" required />
-                                </div>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1.5">Mô tả tóm tắt</label>
-                                <textarea rows={3} value={optWorkflowDesc} onChange={(e) => setOptWorkflowDesc(e.target.value)}
-                                    placeholder="Mô tả các bước bạn đang phải làm..."
-                                    className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none" />
-                            </div>
-                        </div>
-                        <div className="p-6 border-t border-gray-100 flex justify-end gap-3">
-                            <button type="button" onClick={() => { setShowOptimizationModal(false); resetOptForm(); }}
-                                className="px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-xl transition-colors">
-                                Hủy bỏ
-                            </button>
-                            <button type="submit" disabled={isSubmittingOpt}
-                                className="px-5 py-2.5 text-sm font-medium text-white bg-gradient-to-r from-indigo-500 to-violet-500 hover:from-indigo-600 hover:to-violet-600 rounded-xl transition-all flex items-center gap-2 shadow-lg shadow-indigo-500/20 disabled:opacity-60">
-                                {isSubmittingOpt ? (
-                                    <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full anim-spin" /> Đang gửi...</>
-                                ) : (
-                                    <><span className="text-[14px]">⚡</span> Gửi yêu cầu</>
-                                )}
-                            </button>
-                        </div>
-                    </form>
-                </div>
-            )}
 
-            {/* Success Toast */}
-            {showSuccessToast && (
-                <div className="fixed bottom-4 right-4 bg-white p-4 rounded-2xl shadow-xl border border-slate-100 flex items-center gap-3 toast-enter z-50">
-                    <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-600">
-                        <span className="material-symbols-outlined">rocket_launch</span>
-                    </div>
-                    <div>
-                        <h4 className="text-sm font-bold text-slate-900">Đã gửi đề xuất!</h4>
-                        <p className="text-xs text-slate-500">Yêu cầu tối ưu đã được ghi nhận.</p>
-                    </div>
-                    <button onClick={() => setShowSuccessToast(false)} className="ml-4 text-slate-400 hover:text-slate-600">
-                        <span className="material-symbols-outlined text-[18px]">close</span>
-                    </button>
-                </div>
-            )}
         </div>
     );
 };

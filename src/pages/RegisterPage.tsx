@@ -69,6 +69,17 @@ const RegisterPage = () => {
             if (authError) throw authError;
 
             if (authData.user) {
+                // Safety net: upsert profile để đảm bảo luôn tồn tại
+                // Nếu trigger đã tạo → upsert update. Nếu trigger fail → upsert insert.
+                await (supabase as any).from("profiles").upsert({
+                    id: authData.user.id,
+                    email: data.email,
+                    full_name: data.full_name,
+                    employee_code: data.employee_code.toUpperCase(),
+                    department: data.department,
+                    status: "pending",
+                }, { onConflict: "id" });
+
                 navigate("/app");
             }
         } catch (err: any) {
