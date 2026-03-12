@@ -2,6 +2,76 @@
 
 ---
 
+### [2026-03-12] - Tối ưu Header Kho sáng kiến: 4 Thẻ thống kê clickable
+
+**File:** `src/components/views/IdeasView.tsx`
+
+- **4 Stat Cards:** Thêm thẻ "Đang xây luồng" (resolved), layout `lg:grid-cols-4`
+- **Clickable Filter:** Click thẻ → lọc theo status, click lại → hủy lọc (toggle)
+- **Active Highlight:** `ring-2` + `bg-slate-50` + màu ring theo status (amber/blue/violet/emerald)
+- **Xóa Dropdown:** Bỏ `<select>` lọc trạng thái thừa thãi, xóa `FILTER_OPTIONS` constant
+- **Giữ nguyên:** Thanh tìm kiếm, nút "Thêm sáng kiến mới", block "Phản hồi từ Admin"
+
+
+### [2026-03-12] - Đồng bộ Trạng thái + Hiển thị Phản hồi Admin trên Kho sáng kiến
+
+**File:** `src/components/views/IdeasView.tsx`
+
+- **Đồng bộ Status:** Đổi label từ ("Đang chờ", "Đang xử lý", "Đã áp dụng", "Đã đóng") → ("Chờ tiếp nhận", "Đang phân tích", "Đang xây luồng", "Đã triển khai")
+- **Filter Tabs:** Thêm option "Đã triển khai", đổi tên tất cả cho khớp Admin
+- **Stat Cards:** Cập nhật 3 label tương ứng
+- **Fetch:** Bổ sung `admin_feedback` vào câu select
+- **UI Admin Feedback:** Thêm block `bg-gray-50 rounded-md` trên mỗi Ticket Card, chỉ hiện khi `admin_feedback` có dữ liệu
+
+
+### [2026-03-12] - Mở khóa trang Quản lý Ticket cho Admin (toàn phòng ban)
+
+**Files:** `src/components/views/AdminTicketsView.tsx`, `src/pages/DashboardPage.tsx`
+
+- **Fetch mở toang:** Xoá `.eq("department_in_charge",...)` → lấy TẤT CẢ ticket không giới hạn
+- **Realtime toàn cục:** Xoá filter department → lắng nghe mọi sự kiện INSERT/UPDATE/DELETE trên bảng `tickets`
+- **Dropdown lọc phòng ban:** Thêm `<select>` UI với 11 phòng ban (BOD→BD), lọc client-side qua `filterDept`
+- **Xoá guard:** Bỏ `if (!userDepartment) return <Error/>` — Admin không cần department
+- **Xoá prop:** `AdminTicketsView` không còn nhận `userDepartment` prop
+
+
+### [2026-03-12] - Fix Kho sáng kiến: Staff thấy 0 ticket (Nguyên nhân gốc rễ)
+
+**Files:** `src/components/views/IdeasView.tsx`, `src/pages/DashboardPage.tsx`
+
+- **Root cause:** `IdeasView` tự fetch `userDepartment` bằng một `useEffect` riêng → nếu Staff profile chưa có `department` → `userDepartment = null` → `fetchTickets` early-return → 0 ticket
+- **Fix:** Xóa `useEffect` profile-fetch bên trong `IdeasView`. Thay bằng nhận `userId` + `userDepartment` từ `DashboardPage` qua props (DashboardPage đã load đúng và đủ rồi)
+- **DashboardPage:** `<IdeasView userId={userId} userDepartment={userDepartment} />`
+- **Kết quả:** Staff và Manager dùng chung `userDepartment` từ một nguồn duy nhất, không còn race condition
+
+
+### [2026-03-12] - Fix Manager không thấy Ticket phòng ban + Refactor AdminTicketsView
+
+**Files:** `src/components/views/AdminTicketsView.tsx`, `src/pages/DashboardPage.tsx`, `supabase/migrations/20260312_admin_tickets_realdata.sql` [NEW]
+
+- **AdminTicketsView — Full Rewrite:** Xóa toàn bộ mock data (5 ticket hardcode). Thay bằng Supabase real query:
+  - `fetchTickets()`: Query `tickets` JOIN `profiles` (creator info) WHERE `department_in_charge = userDepartment`
+  - **Realtime subscription**: `postgres_changes` filter `department_in_charge=eq.${userDepartment}` → ticket mới nảy lên tự động
+  - **handleSave()**: `supabase.from('tickets').update({ status, admin_feedback })` → lưu thật vào DB
+  - Loading / Empty / Error states hoàn chỉnh
+- **DashboardPage:** Truyền `userDepartment` prop vào `<AdminTicketsView>`
+- **SQL Migration cần chạy:**
+  - `ALTER TABLE tickets ADD COLUMN admin_feedback text`
+  - RLS: DROP + CREATE SELECT policy dùng `department_in_charge` thay vì subquery `creator_id`
+  - RLS: CREATE UPDATE policy cho Manager cùng `department_in_charge`
+
+---
+
+### [2026-03-12] - Fix Hardcode BOD khi tạo Ticket (IdeasView)
+
+**File:** `src/components/views/IdeasView.tsx`
+
+- **Bug:** `department_in_charge: "BOD"` bị gán cứng trong hàm `handleSubmit()` → mọi ticket đều ghi phòng BOD
+- **Fix:** Thêm state `userDepartment`, query `profiles.department` khi init, thay `"BOD"` bằng `userDepartment`
+- **Guard:** Chặn submit nếu `userDepartment` chưa có giá trị
+
+---
+
 ### [2026-03-10] - Tối ưu Toolbar + Grid + Pagination + Modal — Kho sáng kiến
 
 **File:** `src/components/views/IdeasView.tsx`

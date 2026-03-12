@@ -284,7 +284,7 @@ export const DashboardPage = () => {
                         />
                     )}
                     {activeView === "journey" && <JourneyView />}
-                    {activeView === "ideas" && <IdeasView />}
+                    {activeView === "ideas" && <IdeasView userId={userId} userDepartment={userDepartment} />}
                     {activeView === "handbook" && (
                         <div className="flex-1 flex items-center justify-center min-h-[60vh]">
                             <div className="text-center">

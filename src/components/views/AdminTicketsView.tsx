@@ -1,16 +1,17 @@
-import { useState, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { supabase } from "@/integrations/supabase/client";
 
 /* ===== Types ===== */
 interface TicketData {
     id: string;
     ticket_code: string;
     title: string;
-    description: string; // JSON string
+    description: string;
     status: "open" | "in_progress" | "resolved" | "closed";
     priority: "low" | "medium" | "high" | "urgent";
     creator_name: string;
     creator_department: string;
-    admin_feedback: string;
+    admin_feedback: string | null;
     created_at: string;
 }
 
@@ -20,6 +21,21 @@ interface ParsedDescription {
     time_wasted: string;
     software_used: string;
 }
+
+/* ===== Department Filter Options ===== */
+const DEPT_OPTIONS = [
+    { value: "all", label: "Tất cả phòng ban" },
+    { value: "BOD", label: "BOD" },
+    { value: "HR", label: "HR" },
+    { value: "OPS", label: "OPS" },
+    { value: "MKT", label: "MKT" },
+    { value: "ACC", label: "ACC" },
+    { value: "CX", label: "CX" },
+    { value: "QAQC", label: "QAQC" },
+    { value: "R&D", label: "R&D" },
+    { value: "SP", label: "SP" },
+    { value: "BD", label: "BD" },
+];
 
 /* ===== Status Config ===== */
 const statusConfig: Record<
@@ -52,99 +68,16 @@ const statusConfig: Record<
     },
 };
 
-/* ===== Initial Mock Data ===== */
-const initialTickets: TicketData[] = [
-    {
-        id: "1",
-        ticket_code: "OPT-20260308-A1B2",
-        title: "[Tối ưu] Tự động đối soát doanh thu cuối ngày",
-        description: JSON.stringify({
-            workflow_description: "Nhân viên kế toán phải đối soát doanh thu POS - Excel thủ công mỗi tối, dễ sai lệch con số và mất thời gian.",
-            pain_points: ["Nhập liệu thủ công", "Dễ sai sót"],
-            time_wasted: "3-5 giờ / tuần",
-            software_used: "POS, Excel, Google Sheets",
-        }),
-        status: "open",
-        priority: "high",
-        creator_name: "Nguyễn Thị Mai",
-        creator_department: "ACC",
-        admin_feedback: "",
-        created_at: "2026-03-08T14:30:00Z",
-    },
-    {
-        id: "2",
-        ticket_code: "OPT-20260307-C3D4",
-        title: "[Tối ưu] Chatbot đặt bàn tự động qua Zalo OA",
-        description: JSON.stringify({
-            workflow_description: "Khách hàng gọi điện đặt bàn giờ cao điểm, tổng đài bị nghẽn, mất khách.",
-            pain_points: ["Copy-paste nhiều nền tảng", "Chờ duyệt lâu"],
-            time_wasted: "5+ giờ / tuần",
-            software_used: "Zalo OA, CRM, Excel",
-        }),
-        status: "in_progress",
-        priority: "high",
-        creator_name: "Trần Văn Hùng",
-        creator_department: "CX",
-        admin_feedback: "Đội R&D đang nghiên cứu tích hợp API Zalo. Dự kiến có prototype tuần sau.",
-        created_at: "2026-03-07T09:15:00Z",
-    },
-    {
-        id: "3",
-        ticket_code: "OPT-20260305-E5F6",
-        title: "[Tối ưu] Dashboard tồn kho nguyên liệu real-time",
-        description: JSON.stringify({
-            workflow_description: "Quản lý kho kiểm tra file báo cáo từng chi nhánh, dễ bỏ sót nguyên liệu sắp hết.",
-            pain_points: ["Nhập liệu thủ công", "Dễ sai sót", "Copy-paste nhiều nền tảng"],
-            time_wasted: "3-5 giờ / tuần",
-            software_used: "Google Sheets, App nội bộ",
-        }),
-        status: "resolved",
-        priority: "medium",
-        creator_name: "Lê Hoàng Anh",
-        creator_department: "OPS",
-        admin_feedback: "Đã xây luồng kết nối API giữa các chi nhánh. Đang test UAT trước khi deploy.",
-        created_at: "2026-03-05T16:45:00Z",
-    },
-    {
-        id: "4",
-        ticket_code: "OPT-20260301-G7H8",
-        title: "[Tối ưu] Báo cáo doanh thu tự động hàng tuần",
-        description: JSON.stringify({
-            workflow_description: "Mỗi thứ 2, kế toán mất nửa ngày tổng hợp doanh thu từ POS, bank, ví điện tử rồi gửi mail cho BOD.",
-            pain_points: ["Nhập liệu thủ công", "Copy-paste nhiều nền tảng"],
-            time_wasted: "5+ giờ / tuần",
-            software_used: "Excel, Gmail, POS",
-        }),
-        status: "closed",
-        priority: "medium",
-        creator_name: "Phạm Minh Tâm",
-        creator_department: "ACC",
-        admin_feedback: "Đã triển khai thành công! Hệ thống tự động gửi report mỗi thứ 2 lúc 8h sáng qua Email + Zalo.",
-        created_at: "2026-03-01T11:00:00Z",
-    },
-    {
-        id: "5",
-        ticket_code: "OPT-20260306-J9K0",
-        title: "[Tối ưu] Tự động hóa xếp lịch ca làm việc",
-        description: JSON.stringify({
-            workflow_description: "HR mất 4-5 giờ mỗi tuần để xếp lịch ca thủ công trên Excel, thường bị trùng ca hoặc thiếu người.",
-            pain_points: ["Nhập liệu thủ công", "Dễ sai sót", "Chờ duyệt lâu"],
-            time_wasted: "3-5 giờ / tuần",
-            software_used: "Excel, Base.vn",
-        }),
-        status: "open",
-        priority: "urgent",
-        creator_name: "Võ Thị Lan",
-        creator_department: "HR",
-        admin_feedback: "",
-        created_at: "2026-03-06T08:20:00Z",
-    },
-];
-
 /* ===== Helpers ===== */
 const parseDescription = (desc: string): ParsedDescription => {
     try {
-        return JSON.parse(desc);
+        const parsed = JSON.parse(desc);
+        return {
+            workflow_description: parsed.workflow_description || parsed.pain_point || desc,
+            pain_points: parsed.pain_points || (parsed.pain_point ? [parsed.pain_point] : []),
+            time_wasted: parsed.time_wasted || "N/A",
+            software_used: parsed.software_used || "N/A",
+        };
     } catch {
         return { workflow_description: desc, pain_points: [], time_wasted: "N/A", software_used: "N/A" };
     }
@@ -168,17 +101,87 @@ const timeAgo = (dateStr: string): string => {
 
 /* ===== Component ===== */
 export const AdminTicketsView = () => {
-    /* ===== Mutable ticket state — enables real-time updates ===== */
-    const [tickets, setTickets] = useState<TicketData[]>(initialTickets);
-    const [selectedId, setSelectedId] = useState<string>(initialTickets[0].id);
+    /* ===== State ===== */
+    const [tickets, setTickets] = useState<TicketData[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [selectedId, setSelectedId] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState("");
     const [filterStatus, setFilterStatus] = useState<TicketData["status"] | "all">("all");
+    const [filterDept, setFilterDept] = useState<string>("all");
 
     // Editable fields for the selected ticket
-    const [editStatus, setEditStatus] = useState<TicketData["status"]>(initialTickets[0].status);
-    const [editFeedback, setEditFeedback] = useState<string>(initialTickets[0].admin_feedback);
+    const [editStatus, setEditStatus] = useState<TicketData["status"]>("open");
+    const [editFeedback, setEditFeedback] = useState<string>("");
     const [isSaving, setIsSaving] = useState(false);
     const [showSaveToast, setShowSaveToast] = useState(false);
+
+    /* ===== Fetch ALL tickets (Admin sees everything) ===== */
+    const fetchTickets = useCallback(async () => {
+        setLoading(true);
+        try {
+            const { data, error } = await (supabase as any)
+                .from("tickets")
+                .select(`
+                    id, ticket_code, title, description, status, priority,
+                    admin_feedback, created_at, department_in_charge,
+                    creator:profiles!tickets_creator_id_fkey ( full_name, department )
+                `)
+                .order("created_at", { ascending: false });
+
+            console.log("=== DATA ADMIN NHẬN ĐƯỢC ===", data, "error:", error);
+
+            if (error) {
+                console.error("[AdminTicketsView] fetch error:", error);
+                return;
+            }
+
+            if (data) {
+                const mapped: TicketData[] = data.map((t: any) => ({
+                    id: t.id,
+                    ticket_code: t.ticket_code || "N/A",
+                    title: t.title,
+                    description: t.description || "{}",
+                    status: t.status,
+                    priority: t.priority,
+                    creator_name: t.creator?.full_name || "Không rõ",
+                    creator_department: t.department_in_charge || t.creator?.department || "N/A",
+                    admin_feedback: t.admin_feedback || "",
+                    created_at: t.created_at,
+                }));
+                setTickets(mapped);
+
+                // Auto-select first ticket if none selected
+                if (mapped.length > 0 && !selectedId) {
+                    setSelectedId(mapped[0].id);
+                    setEditStatus(mapped[0].status);
+                    setEditFeedback(mapped[0].admin_feedback || "");
+                }
+            }
+        } catch (err) {
+            console.error("[AdminTicketsView] unexpected error:", err);
+        } finally {
+            setLoading(false);
+        }
+    }, [selectedId]);
+
+    useEffect(() => { fetchTickets(); }, [fetchTickets]);
+
+    /* ===== Realtime subscription — ALL tickets globally ===== */
+    useEffect(() => {
+        const channel = supabase
+            .channel("admin-all-tickets")
+            .on(
+                "postgres_changes" as any,
+                { event: "*", schema: "public", table: "tickets" },
+                (payload: any) => {
+                    console.log("[AdminTicketsView] Realtime event:", payload.eventType);
+                    fetchTickets();
+                }
+            )
+            .subscribe();
+
+        return () => { supabase.removeChannel(channel); };
+    }, [fetchTickets]);
 
     /* ===== Computed ===== */
     const statusCounts = useMemo(() => {
@@ -195,45 +198,77 @@ export const AdminTicketsView = () => {
                 t.ticket_code.toLowerCase().includes(searchQuery.toLowerCase()) ||
                 t.creator_name.toLowerCase().includes(searchQuery.toLowerCase());
             const matchStatus = filterStatus === "all" || t.status === filterStatus;
-            return matchSearch && matchStatus;
+            const matchDept = filterDept === "all" || t.creator_department === filterDept;
+            return matchSearch && matchStatus && matchDept;
         });
-    }, [tickets, searchQuery, filterStatus]);
+    }, [tickets, searchQuery, filterStatus, filterDept]);
 
     const selectedTicket = tickets.find((t) => t.id === selectedId) || tickets[0];
-    const parsedDesc = parseDescription(selectedTicket.description);
-
-    // Use editStatus for the detail header badge (reflects pending edit)
+    const parsedDesc = selectedTicket ? parseDescription(selectedTicket.description) : null;
     const detailStatusCfg = statusConfig[editStatus];
 
     /* ===== Handlers ===== */
     const handleSelectTicket = (ticket: TicketData) => {
         setSelectedId(ticket.id);
         setEditStatus(ticket.status);
-        setEditFeedback(ticket.admin_feedback);
+        setEditFeedback(ticket.admin_feedback || "");
     };
 
     const handleSave = async () => {
+        if (!selectedId) return;
         setIsSaving(true);
-        // Simulate API call delay
-        await new Promise((r) => setTimeout(r, 600));
+        try {
+            const { error } = await (supabase as any)
+                .from("tickets")
+                .update({
+                    status: editStatus,
+                    admin_feedback: editFeedback,
+                    ...(editStatus === "resolved" || editStatus === "closed"
+                        ? { resolved_at: new Date().toISOString() }
+                        : {}),
+                })
+                .eq("id", selectedId);
 
-        // Update ticket in the mutable state — triggers re-render of list, badges, stat cards
-        setTickets((prev) =>
-            prev.map((t) =>
-                t.id === selectedId
-                    ? { ...t, status: editStatus, admin_feedback: editFeedback }
-                    : t
-            )
-        );
+            if (error) {
+                console.error("[AdminTicketsView] save error:", error);
+                alert("Lỗi lưu: " + error.message);
+                return;
+            }
 
-        setIsSaving(false);
-        setShowSaveToast(true);
-        setTimeout(() => setShowSaveToast(false), 2500);
+            // Update local state immediately for responsiveness
+            setTickets((prev) =>
+                prev.map((t) =>
+                    t.id === selectedId
+                        ? { ...t, status: editStatus, admin_feedback: editFeedback }
+                        : t
+                )
+            );
+
+            setShowSaveToast(true);
+            setTimeout(() => setShowSaveToast(false), 2500);
+        } catch (err) {
+            console.error("[AdminTicketsView] save unexpected error:", err);
+            alert("Có lỗi xảy ra khi lưu.");
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     const handleStatCardClick = (status: TicketData["status"]) => {
         setFilterStatus((prev) => (prev === status ? "all" : status));
     };
+
+    /* ===== Loading State ===== */
+    if (loading) {
+        return (
+            <div className="flex-1 flex items-center justify-center min-h-[60vh]">
+                <div className="flex flex-col items-center gap-3">
+                    <div className="w-10 h-10 border-4 border-indigo-200 border-t-indigo-600 rounded-full anim-spin" />
+                    <p className="text-sm text-slate-500 font-medium">Đang tải tất cả ticket...</p>
+                </div>
+            </div>
+        );
+    }
 
     /* ===== Render ===== */
     return (
@@ -242,10 +277,10 @@ export const AdminTicketsView = () => {
             <div className="flex-shrink-0 anim-fade-in-up">
                 <h2 className="text-xl font-extrabold text-slate-800 flex items-center gap-2">
                     <span className="text-2xl">🎫</span>
-                    Quản lý Ticket
+                    Quản lý Ticket — Tất cả phòng ban
                 </h2>
                 <p className="text-sm text-slate-400 mt-1">
-                    Tiếp nhận, phân tích và xử lý đề xuất tối ưu từ nhân viên
+                    Tổng quan, phân tích và xử lý đề xuất tối ưu từ toàn bộ phòng ban
                 </p>
             </div>
 
@@ -301,16 +336,28 @@ export const AdminTicketsView = () => {
                                 />
                             </div>
                             <button
-                                onClick={() => setFilterStatus("all")}
-                                title="Xóa bộ lọc"
+                                onClick={() => { setFilterStatus("all"); setFilterDept("all"); }}
+                                title="Xóa tất cả bộ lọc"
                                 className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all flex-shrink-0
-                                    ${filterStatus !== "all"
+                                    ${filterStatus !== "all" || filterDept !== "all"
                                         ? "bg-indigo-50 text-indigo-600 hover:bg-indigo-100"
                                         : "bg-slate-50 text-slate-300 hover:bg-slate-100 hover:text-slate-400"
                                     }`}
                             >
                                 <span className="material-symbols-outlined text-[20px]">filter_alt_off</span>
                             </button>
+                        </div>
+                        {/* Department Filter Dropdown */}
+                        <div className="mt-2">
+                            <select
+                                value={filterDept}
+                                onChange={(e) => setFilterDept(e.target.value)}
+                                className="w-full px-3 py-2 text-[13px] bg-slate-50 border border-slate-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent focus:bg-white transition-all appearance-none cursor-pointer font-medium text-slate-600"
+                            >
+                                {DEPT_OPTIONS.map((opt) => (
+                                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                ))}
+                            </select>
                         </div>
                         {/* Active filter indicator */}
                         {filterStatus !== "all" && (
@@ -366,7 +413,9 @@ export const AdminTicketsView = () => {
                         ) : (
                             <div className="flex flex-col items-center justify-center py-12 text-center">
                                 <span className="material-symbols-outlined text-4xl text-slate-200">inbox</span>
-                                <p className="text-sm text-slate-400 mt-2">Không tìm thấy ticket nào</p>
+                                <p className="text-sm text-slate-400 mt-2">
+                                    {tickets.length === 0 ? "Chưa có ticket nào từ phòng ban" : "Không tìm thấy ticket nào"}
+                                </p>
                             </div>
                         )}
                     </div>
@@ -381,192 +430,201 @@ export const AdminTicketsView = () => {
 
                 {/* ── DETAIL VIEW (Right 65%) ── */}
                 <div className="bg-white rounded-2xl border border-slate-100 shadow-sm flex flex-col overflow-hidden">
-                    <div className="flex-1 overflow-y-auto" style={{ scrollbarWidth: "thin" }}>
-                        {/* Detail Header */}
-                        <div className="p-6 pb-4 border-b border-slate-100">
-                            <div className="flex items-start justify-between">
-                                <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-3 mb-2">
-                                        <span className="text-xs font-mono font-bold text-slate-400">
-                                            {selectedTicket.ticket_code}
-                                        </span>
-                                        <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-full ${detailStatusCfg.badge}`}>
-                                            {detailStatusCfg.icon} {detailStatusCfg.label}
+                    {selectedTicket && parsedDesc ? (
+                        <div className="flex-1 overflow-y-auto" style={{ scrollbarWidth: "thin" }}>
+                            {/* Detail Header */}
+                            <div className="p-6 pb-4 border-b border-slate-100">
+                                <div className="flex items-start justify-between">
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-3 mb-2">
+                                            <span className="text-xs font-mono font-bold text-slate-400">
+                                                {selectedTicket.ticket_code}
+                                            </span>
+                                            <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-full ${detailStatusCfg.badge}`}>
+                                                {detailStatusCfg.icon} {detailStatusCfg.label}
+                                            </span>
+                                        </div>
+                                        <h3 className="text-lg font-bold text-slate-800 leading-snug">
+                                            {selectedTicket.title.replace("[Tối ưu] ", "")}
+                                        </h3>
+                                    </div>
+                                    <div className="flex items-center gap-1.5 ml-4 flex-shrink-0">
+                                        <button className="w-9 h-9 rounded-xl flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all" title="Xóa">
+                                            <span className="material-symbols-outlined text-[20px]">delete</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Sender Info */}
+                            <div className="px-6 py-4 border-b border-slate-100">
+                                <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-3">
+                                    Thông tin người gửi
+                                </h4>
+                                <div className="flex items-center gap-4">
+                                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-400 to-violet-400 flex items-center justify-center flex-shrink-0 shadow-sm">
+                                        <span className="text-white text-sm font-bold">
+                                            {selectedTicket.creator_name.charAt(0)}
                                         </span>
                                     </div>
-                                    <h3 className="text-lg font-bold text-slate-800 leading-snug">
-                                        {selectedTicket.title.replace("[Tối ưu] ", "")}
-                                    </h3>
+                                    <div>
+                                        <p className="text-sm font-semibold text-slate-700">
+                                            {selectedTicket.creator_name}
+                                        </p>
+                                        <p className="text-xs text-slate-400">
+                                            Phòng {selectedTicket.creator_department} • {formatDate(selectedTicket.created_at)}
+                                        </p>
+                                    </div>
                                 </div>
-                                <div className="flex items-center gap-1.5 ml-4 flex-shrink-0">
-                                    <button className="w-9 h-9 rounded-xl flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all" title="Xóa">
-                                        <span className="material-symbols-outlined text-[20px]">delete</span>
+                            </div>
+
+                            {/* Main Content — Pain Points + Details */}
+                            <div className="px-6 py-4">
+                                <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-3">
+                                    Nội dung đề xuất
+                                </h4>
+                                <div className="bg-slate-50/80 rounded-2xl p-5 space-y-4 border border-slate-100/80">
+                                    {/* Workflow Description */}
+                                    <div>
+                                        <p className="text-xs font-semibold text-slate-500 mb-1.5 flex items-center gap-1.5">
+                                            <span className="material-symbols-outlined text-[16px] text-slate-400">description</span>
+                                            Mô tả quy trình
+                                        </p>
+                                        <p className="text-sm text-slate-700 leading-relaxed">
+                                            {parsedDesc.workflow_description}
+                                        </p>
+                                    </div>
+
+                                    <div className="border-t border-slate-200/60" />
+
+                                    {/* Pain Points */}
+                                    <div>
+                                        <p className="text-xs font-semibold text-slate-500 mb-2 flex items-center gap-1.5">
+                                            <span className="material-symbols-outlined text-[16px] text-red-400">heart_broken</span>
+                                            Nỗi đau (Pain Points)
+                                        </p>
+                                        <div className="flex flex-wrap gap-2">
+                                            {parsedDesc.pain_points.length > 0 ? (
+                                                parsedDesc.pain_points.map((pp, i) => (
+                                                    <span
+                                                        key={i}
+                                                        className="inline-flex items-center gap-1 px-3 py-1.5 bg-red-50 text-red-600 text-xs font-medium rounded-full border border-red-100"
+                                                    >
+                                                        🔴 {pp}
+                                                    </span>
+                                                ))
+                                            ) : (
+                                                <span className="text-xs text-slate-400 italic">Không có dữ liệu</span>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    <div className="border-t border-slate-200/60" />
+
+                                    {/* Time Wasted + Software */}
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <p className="text-xs font-semibold text-slate-500 mb-1.5 flex items-center gap-1.5">
+                                                <span className="material-symbols-outlined text-[16px] text-orange-400">schedule</span>
+                                                Thời gian lãng phí
+                                            </p>
+                                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-orange-50 text-orange-600 text-xs font-semibold rounded-full border border-orange-100">
+                                                ⏱️ {parsedDesc.time_wasted}
+                                            </span>
+                                        </div>
+                                        <div>
+                                            <p className="text-xs font-semibold text-slate-500 mb-1.5 flex items-center gap-1.5">
+                                                <span className="material-symbols-outlined text-[16px] text-blue-400">apps</span>
+                                                Ứng dụng liên quan
+                                            </p>
+                                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-600 text-xs font-semibold rounded-full border border-blue-100">
+                                                💻 {parsedDesc.software_used}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Existing Admin Feedback (read-only, if any) */}
+                            {selectedTicket.admin_feedback && (
+                                <div className="px-6 pb-4">
+                                    <div className="bg-indigo-50/60 rounded-xl p-4 border-l-4 border-indigo-400">
+                                        <p className="text-xs font-semibold text-indigo-600 mb-1 flex items-center gap-1.5">
+                                            <span className="material-symbols-outlined text-[16px]">chat</span>
+                                            Phản hồi trước đó
+                                        </p>
+                                        <p className="text-sm text-slate-700 leading-relaxed">
+                                            {selectedTicket.admin_feedback}
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* ===== ADMIN ACTIONS ===== */}
+                            <div className="px-6 py-5 border-t border-slate-100 bg-slate-50/40">
+                                <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-4 flex items-center gap-1.5">
+                                    <span className="material-symbols-outlined text-[16px]">tune</span>
+                                    Cập nhật tiến độ
+                                </h4>
+
+                                <div className="space-y-4">
+                                    {/* Status Select */}
+                                    <div>
+                                        <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                                            Trạng thái
+                                        </label>
+                                        <select
+                                            value={editStatus}
+                                            onChange={(e) => setEditStatus(e.target.value as TicketData["status"])}
+                                            className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all appearance-none cursor-pointer"
+                                        >
+                                            <option value="open">📥 Chờ tiếp nhận</option>
+                                            <option value="in_progress">🔍 Đang phân tích</option>
+                                            <option value="resolved">🔨 Đang xây luồng</option>
+                                            <option value="closed">✅ Đã triển khai</option>
+                                        </select>
+                                    </div>
+
+                                    {/* Admin Feedback Textarea */}
+                                    <div>
+                                        <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                                            Phản hồi của Admin
+                                        </label>
+                                        <textarea
+                                            rows={3}
+                                            value={editFeedback}
+                                            onChange={(e) => setEditFeedback(e.target.value)}
+                                            placeholder="Nhập nhận xét, hướng xử lý, hoặc kết quả cho nhân viên..."
+                                            className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all resize-none"
+                                        />
+                                    </div>
+
+                                    {/* Save Button */}
+                                    <button
+                                        onClick={handleSave}
+                                        disabled={isSaving}
+                                        className="w-full flex items-center justify-center gap-2 px-5 py-3 text-sm font-bold text-white bg-gradient-to-r from-indigo-500 to-violet-500 hover:from-indigo-600 hover:to-violet-600 rounded-xl transition-all shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30 hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-60 disabled:cursor-not-allowed disabled:transform-none"
+                                    >
+                                        {isSaving ? (
+                                            <>
+                                                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                                Đang lưu...
+                                            </>
+                                        ) : (
+                                            <>💾 Lưu thay đổi</>
+                                        )}
                                     </button>
                                 </div>
                             </div>
                         </div>
-
-                        {/* Sender Info */}
-                        <div className="px-6 py-4 border-b border-slate-100">
-                            <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-3">
-                                Thông tin người gửi
-                            </h4>
-                            <div className="flex items-center gap-4">
-                                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-400 to-violet-400 flex items-center justify-center flex-shrink-0 shadow-sm">
-                                    <span className="text-white text-sm font-bold">
-                                        {selectedTicket.creator_name.charAt(0)}
-                                    </span>
-                                </div>
-                                <div>
-                                    <p className="text-sm font-semibold text-slate-700">
-                                        {selectedTicket.creator_name}
-                                    </p>
-                                    <p className="text-xs text-slate-400">
-                                        Phòng {selectedTicket.creator_department} • {formatDate(selectedTicket.created_at)}
-                                    </p>
-                                </div>
+                    ) : (
+                        <div className="flex-1 flex items-center justify-center">
+                            <div className="text-center">
+                                <span className="material-symbols-outlined text-5xl text-slate-200">inbox</span>
+                                <p className="mt-3 text-slate-400 font-medium">Chọn một ticket để xem chi tiết</p>
                             </div>
                         </div>
-
-                        {/* Main Content — Pain Points + Details */}
-                        <div className="px-6 py-4">
-                            <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-3">
-                                Nội dung đề xuất
-                            </h4>
-                            <div className="bg-slate-50/80 rounded-2xl p-5 space-y-4 border border-slate-100/80">
-                                {/* Workflow Description */}
-                                <div>
-                                    <p className="text-xs font-semibold text-slate-500 mb-1.5 flex items-center gap-1.5">
-                                        <span className="material-symbols-outlined text-[16px] text-slate-400">description</span>
-                                        Mô tả quy trình
-                                    </p>
-                                    <p className="text-sm text-slate-700 leading-relaxed">
-                                        {parsedDesc.workflow_description}
-                                    </p>
-                                </div>
-
-                                <div className="border-t border-slate-200/60" />
-
-                                {/* Pain Points */}
-                                <div>
-                                    <p className="text-xs font-semibold text-slate-500 mb-2 flex items-center gap-1.5">
-                                        <span className="material-symbols-outlined text-[16px] text-red-400">heart_broken</span>
-                                        Nỗi đau (Pain Points)
-                                    </p>
-                                    <div className="flex flex-wrap gap-2">
-                                        {parsedDesc.pain_points.length > 0 ? (
-                                            parsedDesc.pain_points.map((pp, i) => (
-                                                <span
-                                                    key={i}
-                                                    className="inline-flex items-center gap-1 px-3 py-1.5 bg-red-50 text-red-600 text-xs font-medium rounded-full border border-red-100"
-                                                >
-                                                    🔴 {pp}
-                                                </span>
-                                            ))
-                                        ) : (
-                                            <span className="text-xs text-slate-400 italic">Không có dữ liệu</span>
-                                        )}
-                                    </div>
-                                </div>
-
-                                <div className="border-t border-slate-200/60" />
-
-                                {/* Time Wasted + Software */}
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <p className="text-xs font-semibold text-slate-500 mb-1.5 flex items-center gap-1.5">
-                                            <span className="material-symbols-outlined text-[16px] text-orange-400">schedule</span>
-                                            Thời gian lãng phí
-                                        </p>
-                                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-orange-50 text-orange-600 text-xs font-semibold rounded-full border border-orange-100">
-                                            ⏱️ {parsedDesc.time_wasted}
-                                        </span>
-                                    </div>
-                                    <div>
-                                        <p className="text-xs font-semibold text-slate-500 mb-1.5 flex items-center gap-1.5">
-                                            <span className="material-symbols-outlined text-[16px] text-blue-400">apps</span>
-                                            Ứng dụng liên quan
-                                        </p>
-                                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-600 text-xs font-semibold rounded-full border border-blue-100">
-                                            💻 {parsedDesc.software_used}
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Existing Admin Feedback (read-only, if any) */}
-                        {selectedTicket.admin_feedback && (
-                            <div className="px-6 pb-4">
-                                <div className="bg-indigo-50/60 rounded-xl p-4 border-l-4 border-indigo-400">
-                                    <p className="text-xs font-semibold text-indigo-600 mb-1 flex items-center gap-1.5">
-                                        <span className="material-symbols-outlined text-[16px]">chat</span>
-                                        Phản hồi trước đó
-                                    </p>
-                                    <p className="text-sm text-slate-700 leading-relaxed">
-                                        {selectedTicket.admin_feedback}
-                                    </p>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* ===== ADMIN ACTIONS ===== */}
-                        <div className="px-6 py-5 border-t border-slate-100 bg-slate-50/40">
-                            <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-4 flex items-center gap-1.5">
-                                <span className="material-symbols-outlined text-[16px]">tune</span>
-                                Cập nhật tiến độ
-                            </h4>
-
-                            <div className="space-y-4">
-                                {/* Status Select */}
-                                <div>
-                                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">
-                                        Trạng thái
-                                    </label>
-                                    <select
-                                        value={editStatus}
-                                        onChange={(e) => setEditStatus(e.target.value as TicketData["status"])}
-                                        className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all appearance-none cursor-pointer"
-                                    >
-                                        <option value="open">📥 Chờ tiếp nhận</option>
-                                        <option value="in_progress">🔍 Đang phân tích</option>
-                                        <option value="resolved">🔨 Đang xây luồng</option>
-                                        <option value="closed">✅ Đã triển khai</option>
-                                    </select>
-                                </div>
-
-                                {/* Admin Feedback Textarea */}
-                                <div>
-                                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">
-                                        Phản hồi của Admin
-                                    </label>
-                                    <textarea
-                                        rows={3}
-                                        value={editFeedback}
-                                        onChange={(e) => setEditFeedback(e.target.value)}
-                                        placeholder="Nhập nhận xét, hướng xử lý, hoặc kết quả cho nhân viên..."
-                                        className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all resize-none"
-                                    />
-                                </div>
-
-                                {/* Save Button */}
-                                <button
-                                    onClick={handleSave}
-                                    disabled={isSaving}
-                                    className="w-full flex items-center justify-center gap-2 px-5 py-3 text-sm font-bold text-white bg-gradient-to-r from-indigo-500 to-violet-500 hover:from-indigo-600 hover:to-violet-600 rounded-xl transition-all shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30 hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-60 disabled:cursor-not-allowed disabled:transform-none"
-                                >
-                                    {isSaving ? (
-                                        <>
-                                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                            Đang lưu...
-                                        </>
-                                    ) : (
-                                        <>💾 Lưu thay đổi</>
-                                    )}
-                                </button>
-                            </div>
-                        </div>
-                    </div>
+                    )}
                 </div>
             </div>
 

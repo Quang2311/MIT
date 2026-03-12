@@ -10,6 +10,7 @@ interface Ticket {
     description: string | null;
     status: string;
     priority: string;
+    admin_feedback: string | null;
     created_at: string;
 }
 
@@ -26,24 +27,23 @@ const TIME_WASTED_OPTIONS = [
 ];
 
 const statusConfig: Record<string, { label: string; color: string; dot: string }> = {
-    open: { label: "Đang chờ", color: "bg-amber-50 text-amber-700 border border-amber-200", dot: "bg-amber-400" },
-    in_progress: { label: "Đang xử lý", color: "bg-violet-50 text-violet-700 border border-violet-200", dot: "bg-violet-400" },
-    resolved: { label: "Đã áp dụng", color: "bg-emerald-50 text-emerald-700 border border-emerald-200", dot: "bg-emerald-400" },
-    closed: { label: "Đã đóng", color: "bg-slate-50 text-slate-500 border border-slate-200", dot: "bg-slate-400" },
+    open: { label: "Chờ tiếp nhận", color: "bg-amber-50 text-amber-700 border border-amber-200", dot: "bg-amber-400" },
+    in_progress: { label: "Đang phân tích", color: "bg-blue-50 text-blue-700 border border-blue-200", dot: "bg-blue-400" },
+    resolved: { label: "Đang xây luồng", color: "bg-violet-50 text-violet-700 border border-violet-200", dot: "bg-violet-400" },
+    closed: { label: "Đã triển khai", color: "bg-emerald-50 text-emerald-700 border border-emerald-200", dot: "bg-emerald-400" },
 };
 
-const FILTER_OPTIONS = [
-    { value: "all", label: "Tất cả trạng thái" },
-    { value: "open", label: "⏳ Đang chờ" },
-    { value: "in_progress", label: "🔨 Đang xử lý" },
-    { value: "resolved", label: "✅ Đã áp dụng" },
-];
+
+/* ===== Props ===== */
+interface IdeasViewProps {
+    userId: string | null;
+    userDepartment: string | null;
+}
 
 /* ===== Component ===== */
-export const IdeasView = () => {
+export const IdeasView = ({ userId, userDepartment }: IdeasViewProps) => {
     const [tickets, setTickets] = useState<Ticket[]>([]);
     const [loading, setLoading] = useState(true);
-    const [userId, setUserId] = useState<string | null>(null);
 
     /* Toolbar state */
     const [searchQuery, setSearchQuery] = useState("");
@@ -60,22 +60,18 @@ export const IdeasView = () => {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [showToast, setShowToast] = useState(false);
 
-    /* Get user ID */
-    useEffect(() => {
-        supabase.auth.getUser().then(({ data }) => {
-            if (data.user) setUserId(data.user.id);
-        });
-    }, []);
+    /* userDepartment + userId come from DashboardPage props — no need to re-fetch */
 
-    /* Fetch tickets */
+    /* Fetch tickets — chung cho cả Staff & Manager theo phòng ban */
     const fetchTickets = useCallback(async () => {
-        if (!userId) return;
+        if (!userDepartment) return;
         setLoading(true);
         try {
+            console.log("=== KHO SÁNG KIẾN ĐANG LỌC PHÒNG BAN: ===", userDepartment);
             const { data } = await (supabase as any)
                 .from("tickets")
-                .select("id, ticket_code, title, description, status, priority, created_at")
-                .eq("creator_id", userId)
+                .select("id, ticket_code, title, description, status, priority, admin_feedback, created_at")
+                .eq("department_in_charge", userDepartment)
                 .order("created_at", { ascending: false });
             if (data) setTickets(data);
         } catch (err) {
@@ -83,9 +79,22 @@ export const IdeasView = () => {
         } finally {
             setLoading(false);
         }
-    }, [userId]);
+    }, [userDepartment]);
 
     useEffect(() => { fetchTickets(); }, [fetchTickets]);
+
+    /* Realtime — chung cho cả Staff & Manager theo phòng ban */
+    useEffect(() => {
+        if (!userDepartment) return;
+        const channel = supabase
+            .channel(`ideas-dept-${userDepartment}`)
+            .on("postgres_changes" as any, {
+                event: "*", schema: "public", table: "tickets",
+                filter: `department_in_charge=eq.${userDepartment}`,
+            }, () => fetchTickets())
+            .subscribe();
+        return () => { supabase.removeChannel(channel); };
+    }, [userDepartment, fetchTickets]);
 
     /* Filter + Search */
     const filteredTickets = tickets.filter(t => {
@@ -105,6 +114,7 @@ export const IdeasView = () => {
     const statsOpen = tickets.filter(t => t.status === "open").length;
     const statsInProgress = tickets.filter(t => t.status === "in_progress").length;
     const statsResolved = tickets.filter(t => t.status === "resolved").length;
+    const statsClosed = tickets.filter(t => t.status === "closed").length;
 
     /* Reset form */
     const resetForm = () => {
@@ -114,7 +124,7 @@ export const IdeasView = () => {
     /* Submit */
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!formTitle.trim() || !userId) return;
+        if (!formTitle.trim() || !userId || !userDepartment) return;
         setIsSubmitting(true);
         try {
             const code = `OPT-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
@@ -125,7 +135,7 @@ export const IdeasView = () => {
                 workflow_steps: formWorkflow,
             });
             const { error } = await (supabase as any).from("tickets").insert({
-                ticket_code: code, creator_id: userId, department_in_charge: "BOD",
+                ticket_code: code, creator_id: userId, department_in_charge: userDepartment,
                 title: `[Tối ưu] ${formTitle.trim()}`, description: desc,
                 status: "open", priority: "medium",
             });
@@ -181,62 +191,49 @@ export const IdeasView = () => {
                 </div>
             </div>
 
-            {/* ===== STATS SUMMARY ===== */}
-            <div className="grid grid-cols-3 gap-4">
-                <div className="bg-white rounded-2xl border border-slate-200/80 px-5 py-4 shadow-sm">
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center">
-                            <span className="material-symbols-outlined text-[20px] text-amber-500">hourglass_top</span>
-                        </div>
-                        <div>
-                            <p className="text-2xl font-extrabold text-slate-800">{statsOpen}</p>
-                            <p className="text-[12px] text-slate-400 font-medium">Đang chờ duyệt</p>
-                        </div>
-                    </div>
-                </div>
-                <div className="bg-white rounded-2xl border border-slate-200/80 px-5 py-4 shadow-sm">
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-violet-50 flex items-center justify-center">
-                            <span className="material-symbols-outlined text-[20px] text-violet-500">build</span>
-                        </div>
-                        <div>
-                            <p className="text-2xl font-extrabold text-slate-800">{statsInProgress}</p>
-                            <p className="text-[12px] text-slate-400 font-medium">Đang xử lý</p>
-                        </div>
-                    </div>
-                </div>
-                <div className="bg-white rounded-2xl border border-slate-200/80 px-5 py-4 shadow-sm">
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center">
-                            <span className="material-symbols-outlined text-[20px] text-emerald-500">check_circle</span>
-                        </div>
-                        <div>
-                            <p className="text-2xl font-extrabold text-slate-800">{statsResolved}</p>
-                            <p className="text-[12px] text-slate-400 font-medium">Đã áp dụng</p>
-                        </div>
-                    </div>
-                </div>
+            {/* ===== STAT CARDS — Clickable Filters ===== */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {[
+                    { key: "open", count: statsOpen, icon: "hourglass_top", iconBg: "bg-amber-50", iconColor: "text-amber-500", ringColor: "ring-amber-400" },
+                    { key: "in_progress", count: statsInProgress, icon: "search", iconBg: "bg-blue-50", iconColor: "text-blue-500", ringColor: "ring-blue-400" },
+                    { key: "resolved", count: statsResolved, icon: "construction", iconBg: "bg-violet-50", iconColor: "text-violet-500", ringColor: "ring-violet-400" },
+                    { key: "closed", count: statsClosed, icon: "check_circle", iconBg: "bg-emerald-50", iconColor: "text-emerald-500", ringColor: "ring-emerald-400" },
+                ].map((card) => {
+                    const isActive = filterStatus === card.key;
+                    const cfg = statusConfig[card.key];
+                    return (
+                        <button
+                            key={card.key}
+                            onClick={() => setFilterStatus(isActive ? "all" : card.key)}
+                            className={`bg-white rounded-2xl border px-5 py-4 shadow-sm cursor-pointer transition-all hover:shadow-md text-left
+                                ${isActive
+                                    ? `ring-2 ${card.ringColor} border-transparent bg-slate-50`
+                                    : "border-slate-200/80 hover:border-slate-300"
+                                }`}
+                        >
+                            <div className="flex items-center gap-3">
+                                <div className={`w-10 h-10 rounded-xl ${card.iconBg} flex items-center justify-center`}>
+                                    <span className={`material-symbols-outlined text-[20px] ${card.iconColor}`}>{card.icon}</span>
+                                </div>
+                                <div>
+                                    <p className="text-2xl font-extrabold text-slate-800">{card.count}</p>
+                                    <p className="text-[12px] text-slate-400 font-medium">{cfg?.label}</p>
+                                </div>
+                            </div>
+                        </button>
+                    );
+                })}
             </div>
 
             {/* ===== TOOLBAR ===== */}
             <div className="flex items-center justify-between gap-4 flex-wrap">
-                <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <div className="relative flex-1 max-w-xs">
-                        <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-slate-400">search</span>
-                        <input
-                            type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
-                            placeholder="Tìm kiếm sáng kiến..."
-                            className="w-full pl-10 pr-4 py-2.5 text-[13px] border border-slate-200 rounded-xl bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 transition-all placeholder:text-slate-300"
-                        />
-                    </div>
-                    <select
-                        value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
-                        className="px-4 py-2.5 text-[13px] font-medium border border-slate-200 rounded-xl bg-white text-slate-600 cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 transition-all"
-                    >
-                        {FILTER_OPTIONS.map(opt => (
-                            <option key={opt.value} value={opt.value}>{opt.label}</option>
-                        ))}
-                    </select>
+                <div className="relative flex-1 max-w-xs">
+                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-slate-400">search</span>
+                    <input
+                        type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+                        placeholder="Tìm kiếm sáng kiến..."
+                        className="w-full pl-10 pr-4 py-2.5 text-[13px] border border-slate-200 rounded-xl bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 transition-all placeholder:text-slate-300"
+                    />
                 </div>
                 <button
                     onClick={() => setShowModal(true)}
@@ -326,6 +323,14 @@ export const IdeasView = () => {
                                         )}
                                     </div>
 
+                                    {/* Admin Feedback */}
+                                    {ticket.admin_feedback && ticket.admin_feedback.trim() !== "" && (
+                                        <div className="mt-3 bg-gray-50 rounded-md p-3 border border-gray-100">
+                                            <p className="text-[11px] font-bold text-slate-500 mb-1">Phản hồi từ Admin:</p>
+                                            <p className="text-[12px] text-slate-600 leading-relaxed">{ticket.admin_feedback}</p>
+                                        </div>
+                                    )}
+
                                     {/* Footer */}
                                     <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100">
                                         <span className="text-[10px] font-mono font-semibold text-slate-300">{ticket.ticket_code}</span>
@@ -355,11 +360,10 @@ export const IdeasView = () => {
                             <button
                                 key={p}
                                 onClick={() => setCurrentPage(p)}
-                                className={`w-9 h-9 rounded-lg text-[13px] font-semibold transition-all ${
-                                    safePage === p
-                                        ? "bg-indigo-50 text-indigo-600 border border-indigo-200"
-                                        : "text-slate-500 hover:bg-slate-100"
-                                }`}
+                                className={`w-9 h-9 rounded-lg text-[13px] font-semibold transition-all ${safePage === p
+                                    ? "bg-indigo-50 text-indigo-600 border border-indigo-200"
+                                    : "text-slate-500 hover:bg-slate-100"
+                                    }`}
                             >
                                 {p}
                             </button>
