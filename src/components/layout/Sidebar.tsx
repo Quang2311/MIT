@@ -1,5 +1,4 @@
 import { useState, useRef, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
 
 interface SidebarProps {
     activeView: string;
@@ -9,13 +8,7 @@ interface SidebarProps {
     onLogout: () => void;
 }
 
-interface Notification {
-    id: string;
-    title: string;
-    message: string | null;
-    is_read: boolean;
-    created_at: string;
-}
+
 
 /* ===== Menu Groups ===== */
 const personalMenu = [
@@ -43,11 +36,6 @@ export const Sidebar = ({ activeView, onViewChange, userEmail, userRole = "membe
     const [showPopup, setShowPopup] = useState(false);
     const popupRef = useRef<HTMLDivElement>(null);
 
-    // === Notification state ===
-    const [showNotifDropdown, setShowNotifDropdown] = useState(false);
-    const [notifications, setNotifications] = useState<Notification[]>([]);
-    const [unreadCount, setUnreadCount] = useState(0);
-    const notifRef = useRef<HTMLDivElement>(null);
 
     const isManager = userRole === "manager" || userRole === "executive" || userRole === "admin";
     const isAdmin = userRole === "admin";
@@ -62,81 +50,6 @@ export const Sidebar = ({ activeView, onViewChange, userEmail, userRole = "membe
         if (showPopup) document.addEventListener("mousedown", handleClickOutside);
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, [showPopup]);
-
-    // Close notification dropdown on outside click
-    useEffect(() => {
-        const handleClickOutside = (e: MouseEvent) => {
-            if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
-                setShowNotifDropdown(false);
-            }
-        };
-        if (showNotifDropdown) document.addEventListener("mousedown", handleClickOutside);
-        return () => document.removeEventListener("mousedown", handleClickOutside);
-    }, [showNotifDropdown]);
-
-    // Fetch unread count on mount
-    useEffect(() => {
-        const fetchUnreadCount = async () => {
-            try {
-                const { data: { user } } = await supabase.auth.getUser();
-                if (!user) return;
-                const { count, error } = await (supabase as any)
-                    .from("notifications")
-                    .select("*", { count: "exact", head: true })
-                    .eq("user_id", user.id)
-                    .eq("is_read", false);
-                if (!error && count !== null) setUnreadCount(count);
-            } catch (err) {
-                console.error("Notification count error:", err);
-            }
-        };
-        fetchUnreadCount();
-    }, []);
-
-    const handleBellClick = async () => {
-        setShowNotifDropdown((prev) => !prev);
-        if (!showNotifDropdown) {
-            try {
-                const { data: { user } } = await supabase.auth.getUser();
-                if (!user) return;
-                const { data, error } = await (supabase as any)
-                    .from("notifications")
-                    .select("id, title, message, is_read, created_at")
-                    .eq("user_id", user.id)
-                    .order("created_at", { ascending: false })
-                    .limit(10);
-                if (data && !error) setNotifications(data as unknown as Notification[]);
-            } catch (err) {
-                console.error("Notification fetch error:", err);
-            }
-        }
-    };
-
-    const handleMarkAllRead = async () => {
-        try {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) return;
-            await (supabase as any)
-                .from("notifications")
-                .update({ is_read: true })
-                .eq("user_id", user.id)
-                .eq("is_read", false);
-            setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
-            setUnreadCount(0);
-        } catch (err) {
-            console.error("Mark read error:", err);
-        }
-    };
-
-    const timeAgo = (dateStr: string) => {
-        const diff = Date.now() - new Date(dateStr).getTime();
-        const mins = Math.floor(diff / 60000);
-        if (mins < 1) return "Vừa xong";
-        if (mins < 60) return `${mins} phút trước`;
-        const hrs = Math.floor(mins / 60);
-        if (hrs < 24) return `${hrs} giờ trước`;
-        return `${Math.floor(hrs / 24)} ngày trước`;
-    };
 
     const initial = userEmail ? userEmail.charAt(0).toUpperCase() : "S";
 
@@ -166,7 +79,7 @@ export const Sidebar = ({ activeView, onViewChange, userEmail, userRole = "membe
     const roleName = isAdmin ? "Admin" : isManager ? "Quản lý" : "Nhân viên";
 
     return (
-        <aside className="sidebar flex flex-col relative" onMouseLeave={() => { setShowPopup(false); setShowNotifDropdown(false); }}>
+        <aside className="sidebar flex flex-col relative" onMouseLeave={() => { setShowPopup(false); }}>
             <div className="sidebar-inner bg-white border-r border-slate-100/80 flex flex-col h-full">
                 {/* Logo */}
                 <div className="h-14 flex items-center gap-3 px-5 border-b border-slate-200 flex-shrink-0">
@@ -231,7 +144,7 @@ export const Sidebar = ({ activeView, onViewChange, userEmail, userRole = "membe
                         </div>
                     )}
 
-                    {/* Avatar + Bell row */}
+                    {/* Avatar row */}
                     <div className="flex items-center justify-between">
                         <button
                             onClick={() => setShowPopup(!showPopup)}
@@ -248,68 +161,6 @@ export const Sidebar = ({ activeView, onViewChange, userEmail, userRole = "membe
                                 <p className="text-[10px] text-slate-400">{roleName}</p>
                             </div>
                         </button>
-
-                        {/* Notification Bell */}
-                        <div className="relative flex-shrink-0" ref={notifRef}>
-                            <button
-                                onClick={handleBellClick}
-                                className="relative w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all"
-                            >
-                                <span className="material-symbols-outlined text-[20px]">notifications</span>
-                                {unreadCount > 0 && (
-                                    <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full text-[8px] font-bold text-white flex items-center justify-center">
-                                        {unreadCount > 9 ? "9+" : unreadCount}
-                                    </span>
-                                )}
-                            </button>
-
-                            {/* Notification Dropdown */}
-                            {showNotifDropdown && (
-                                <div className="absolute left-full bottom-0 ml-3 w-80 bg-white rounded-xl shadow-lg border border-slate-100 z-50 overflow-hidden anim-slide-up">
-                                    <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
-                                        <h4 className="text-sm font-bold text-slate-800">Thông báo</h4>
-                                        {unreadCount > 0 && (
-                                            <button
-                                                onClick={handleMarkAllRead}
-                                                className="text-xs text-indigo-500 hover:text-indigo-700 font-medium transition-colors"
-                                            >
-                                                Đánh dấu đã đọc
-                                            </button>
-                                        )}
-                                    </div>
-                                    <div className="max-h-72 overflow-y-auto">
-                                        {notifications.length > 0 ? (
-                                            notifications.map((n) => (
-                                                <div
-                                                    key={n.id}
-                                                    className={`px-4 py-3 border-b border-slate-50 hover:bg-slate-50 transition-colors ${!n.is_read ? "bg-indigo-50/40" : ""}`}
-                                                >
-                                                    <div className="flex items-start gap-2.5">
-                                                        {!n.is_read && (
-                                                            <div className="w-2 h-2 rounded-full bg-indigo-500 mt-1.5 flex-shrink-0" />
-                                                        )}
-                                                        <div className="flex-1 min-w-0">
-                                                            <p className={`text-[13px] ${!n.is_read ? "font-bold text-slate-800" : "font-medium text-slate-600"}`}>
-                                                                {n.title}
-                                                            </p>
-                                                            {n.message && (
-                                                                <p className="text-xs text-slate-400 mt-0.5 line-clamp-2">{n.message}</p>
-                                                            )}
-                                                            <p className="text-[10px] text-slate-300 mt-1">{timeAgo(n.created_at)}</p>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            ))
-                                        ) : (
-                                            <div className="px-4 py-8 text-center">
-                                                <span className="material-symbols-outlined text-3xl text-slate-200">notifications_off</span>
-                                                <p className="text-xs text-slate-400 mt-2">Không có thông báo</p>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            )}
-                        </div>
                     </div>
                 </div>
             </div>

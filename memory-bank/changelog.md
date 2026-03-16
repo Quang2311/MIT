@@ -2,6 +2,45 @@
 
 ---
 
+### [2026-03-16] - Fix biểu đồ Tổng quan Team: Dual-mode BarChart
+
+**File:** `src/components/views/TeamOverviewView.tsx`
+
+- **Dept view (all):** BarChart trục Y = tên phòng ban, width 55px (giữ nguyên)
+- **Employee view (filtered):** BarChart trục Y = tên nhân viên (`memberPerformances`), width 120px
+- **Chart title:** Động: "Tiến độ nhân viên OPS hôm nay" vs "Tiến độ phòng ban hôm nay"
+- **Bug 2 (0/0):** Xác nhận đúng — chưa có dữ liệu `mit_tasks` hôm nay
+
+
+### [2026-03-16] - Divider + Di chuyển Chuông thông báo
+
+**Files:** `src/components/layout/Sidebar.tsx`, `src/components/views/IdeasView.tsx`
+
+- **Sidebar:** Xóa bell + notification code (state, fetch, dropdown, Notification interface, supabase import)
+- **IdeasView header:** Thêm bell icon cạnh search bar (`p-2 rounded-full hover:bg-gray-100`)
+- **Divider:** Thêm `<hr className="border-gray-200" />` giữa stat cards và grid
+
+
+### [2026-03-16] - Đại tu UI/UX Kho sáng kiến theo Stitch Reference
+
+**File:** `src/components/views/IdeasView.tsx`
+
+- **Search bar:** Di chuyển lên header top-right, `bg-gray-100` rounded
+- **Xóa Toolbar:** Bỏ nút "Thêm sáng kiến mới" dạng button nguyên khối
+- **Dashed Card:** Thẻ nét đứt "Thêm sáng kiến mới" luôn ở vị trí index 0 trong Grid, `border-dashed border-blue-300 bg-blue-50/50`
+- **Stat Cards:** Giữ nguyên 4 thẻ clickable filter (amber/blue/violet/emerald)
+- **Giữ nguyên:** timeAgo, creator name, "Mô tả:" label, admin feedback block
+
+
+### [2026-03-16] - Fix thời gian âm + hiển thị tên tác giả trên Ticket Card
+
+**File:** `src/components/views/IdeasView.tsx`
+
+- **Fix timeAgo:** Thêm guard `if (diff < 0) return "Vừa xong"`. Thêm phút/giờ granularity thay vì chỉ ngày
+- **Creator Name:** Fetch JOIN `profiles!tickets_creator_id_fkey(full_name)`, hiển thị avatar chữ cái đầu + tên ở footer card
+- **Label Mô tả:** Thêm `<span>Mô tả:</span>` trước `pain_point` text
+
+
 ### [2026-03-12] - Tối ưu Header Kho sáng kiến: 4 Thẻ thống kê clickable
 
 **File:** `src/components/views/IdeasView.tsx`

@@ -357,6 +357,18 @@ export const TeamOverviewView = ({
 
     const rangeLabel = timeFilter === "today" ? "Hôm nay" : timeFilter === "custom" ? `${dateFrom} → ${dateTo}` : `${timeFilter} ngày qua`;
 
+    /* Member-level performance (for bar chart when dept is filtered) */
+    const memberPerformances = useMemo(() => {
+        return members.map(m => ({
+            name: m.full_name || "Ẩn danh",
+            rate: m.totalInPeriod > 0 ? Math.round((m.completedInPeriod / m.totalInPeriod) * 100) : 0,
+            completed: m.completedInPeriod,
+            total: m.totalInPeriod,
+        }));
+    }, [members]);
+
+    const isFilteredDept = filterDepartment !== "all";
+
     /* Custom Tooltip */
     const CustomTooltip = ({ active, payload }: any) => {
         if (!active || !payload?.length) return null;
@@ -499,7 +511,10 @@ export const TeamOverviewView = ({
                     <div className="flex items-center justify-between flex-wrap gap-3">
                         <h3 className="text-[15px] font-bold text-slate-800 flex items-center gap-2">
                             <span className="material-symbols-outlined text-[20px] text-indigo-500">{isToday ? "bar_chart" : "show_chart"}</span>
-                            {isToday ? "Tiến độ phòng ban hôm nay" : "Xu hướng hoàn thành MITs"}
+                            {isToday
+                                ? (isFilteredDept ? `Tiến độ nhân viên ${filterDepartment} hôm nay` : "Tiến độ phòng ban hôm nay")
+                                : "Xu hướng hoàn thành MITs"
+                            }
                         </h3>
                         <div className="flex items-center gap-2">
                             <button
@@ -529,45 +544,54 @@ export const TeamOverviewView = ({
                             <div className="w-8 h-8 border-3 border-indigo-200 border-t-indigo-600 rounded-full anim-spin" />
                         </div>
                     ) : isToday ? (
-                        /* ===== TODAY → BarChart phòng ban ===== */
-                        deptPerformances.length === 0 ? (
-                            <div className="h-72 flex items-center justify-center">
-                                <p className="text-sm text-slate-300">Chưa có dữ liệu hôm nay</p>
-                            </div>
-                        ) : (
-                            <div className="h-72" id="teamProgressChart">
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart data={deptPerformances} layout="vertical" margin={{ top: 8, right: 24, left: 8, bottom: 0 }}>
-                                        <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
-                                        <XAxis
-                                            type="number"
-                                            domain={[0, 100]}
-                                            tick={{ fontSize: 11, fill: "#94a3b8", fontWeight: 500 }}
-                                            tickFormatter={(v: number) => `${v}%`}
-                                            axisLine={{ stroke: "#e2e8f0" }}
-                                            tickLine={false}
-                                        />
-                                        <YAxis
-                                            type="category"
-                                            dataKey="department"
-                                            tick={{ fontSize: 13, fill: "#475569", fontWeight: 600 }}
-                                            axisLine={false}
-                                            tickLine={false}
-                                            width={55}
-                                        />
-                                        <Tooltip
-                                            formatter={(value: any) => [`${value}%`, "Tỉ lệ HT"]}
-                                            contentStyle={{ borderRadius: 12, border: "1px solid #e2e8f0", fontSize: 12 }}
-                                        />
-                                        <Bar dataKey="rate" radius={[0, 8, 8, 0]} barSize={28}>
-                                            {deptPerformances.map((_, idx) => (
-                                                <Cell key={idx} fill={BAR_COLORS[idx % BAR_COLORS.length]} />
-                                            ))}
-                                        </Bar>
-                                    </BarChart>
-                                </ResponsiveContainer>
-                            </div>
-                        )
+                        /* ===== TODAY → BarChart ===== */
+                        (() => {
+                            /* Decide data source: employee-level OR dept-level */
+                            const chartData = isFilteredDept ? memberPerformances : deptPerformances;
+                            const yKey = isFilteredDept ? "name" : "department";
+                            const isEmpty = chartData.length === 0 || chartData.every((d: any) => (d.rate === 0 && (d.total || 0) === 0));
+
+                            if (isEmpty) return (
+                                <div className="h-72 flex items-center justify-center">
+                                    <p className="text-sm text-slate-300">Chưa có dữ liệu hôm nay</p>
+                                </div>
+                            );
+
+                            return (
+                                <div className="h-72" id="teamProgressChart" style={{ minHeight: isFilteredDept && chartData.length > 6 ? chartData.length * 40 : 288 }}>
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <BarChart data={chartData} layout="vertical" margin={{ top: 8, right: 24, left: 8, bottom: 0 }}>
+                                            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
+                                            <XAxis
+                                                type="number"
+                                                domain={[0, 100]}
+                                                tick={{ fontSize: 11, fill: "#94a3b8", fontWeight: 500 }}
+                                                tickFormatter={(v: number) => `${v}%`}
+                                                axisLine={{ stroke: "#e2e8f0" }}
+                                                tickLine={false}
+                                            />
+                                            <YAxis
+                                                type="category"
+                                                dataKey={yKey}
+                                                tick={{ fontSize: 12, fill: "#475569", fontWeight: 600 }}
+                                                axisLine={false}
+                                                tickLine={false}
+                                                width={isFilteredDept ? 120 : 55}
+                                            />
+                                            <Tooltip
+                                                formatter={(value: any) => [`${value}%`, "Tỉ lệ HT"]}
+                                                contentStyle={{ borderRadius: 12, border: "1px solid #e2e8f0", fontSize: 12 }}
+                                            />
+                                            <Bar dataKey="rate" radius={[0, 8, 8, 0]} barSize={28}>
+                                                {chartData.map((_: any, idx: number) => (
+                                                    <Cell key={idx} fill={BAR_COLORS[idx % BAR_COLORS.length]} />
+                                                ))}
+                                            </Bar>
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                </div>
+                            );
+                        })()
                     ) : (
                         /* ===== RANGE → AreaChart xu hướng ===== */
                         trendData.every(d => d.total === 0) ? (

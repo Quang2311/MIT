@@ -11,6 +11,7 @@ interface Ticket {
     status: string;
     priority: string;
     admin_feedback: string | null;
+    creator_name: string;
     created_at: string;
 }
 
@@ -70,10 +71,17 @@ export const IdeasView = ({ userId, userDepartment }: IdeasViewProps) => {
             console.log("=== KHO SÁNG KIẾN ĐANG LỌC PHÒNG BAN: ===", userDepartment);
             const { data } = await (supabase as any)
                 .from("tickets")
-                .select("id, ticket_code, title, description, status, priority, admin_feedback, created_at")
+                .select(`
+                    id, ticket_code, title, description, status, priority,
+                    admin_feedback, created_at,
+                    creator:profiles!tickets_creator_id_fkey ( full_name )
+                `)
                 .eq("department_in_charge", userDepartment)
                 .order("created_at", { ascending: false });
-            if (data) setTickets(data);
+            if (data) setTickets(data.map((t: any) => ({
+                ...t,
+                creator_name: t.creator?.full_name || "Ẩn danh",
+            })));
         } catch (err) {
             console.error("IdeasView fetch error:", err);
         } finally {
@@ -149,8 +157,13 @@ export const IdeasView = ({ userId, userDepartment }: IdeasViewProps) => {
     /* Helpers */
     const timeAgo = (dateStr: string) => {
         const diff = Date.now() - new Date(dateStr).getTime();
-        const days = Math.floor(diff / 86400000);
-        if (days === 0) return "Hôm nay";
+        if (diff < 0) return "Vừa xong";
+        const mins = Math.floor(diff / 60000);
+        if (mins < 1) return "Vừa xong";
+        if (mins < 60) return `${mins} phút trước`;
+        const hrs = Math.floor(mins / 60);
+        if (hrs < 24) return `${hrs} giờ trước`;
+        const days = Math.floor(hrs / 24);
         if (days === 1) return "Hôm qua";
         return `${days} ngày trước`;
     };
@@ -189,6 +202,19 @@ export const IdeasView = ({ userId, userDepartment }: IdeasViewProps) => {
                         Theo dõi và đề xuất tối ưu quy trình
                     </p>
                 </div>
+                <div className="flex items-center gap-3">
+                    <div className="relative flex-1 max-w-xs">
+                        <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-slate-400">search</span>
+                        <input
+                            type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+                            placeholder="Tìm kiếm sáng kiến..."
+                            className="w-full pl-10 pr-4 py-2.5 text-[13px] rounded-xl bg-gray-100 text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:bg-white focus:border-indigo-400 border border-transparent transition-all placeholder:text-slate-400"
+                        />
+                    </div>
+                    <button className="relative p-2 rounded-full hover:bg-gray-100 text-gray-500 hover:text-indigo-600 transition-all">
+                        <span className="material-symbols-outlined text-[22px]">notifications</span>
+                    </button>
+                </div>
             </div>
 
             {/* ===== STAT CARDS — Clickable Filters ===== */}
@@ -225,57 +251,30 @@ export const IdeasView = ({ userId, userDepartment }: IdeasViewProps) => {
                 })}
             </div>
 
-            {/* ===== TOOLBAR ===== */}
-            <div className="flex items-center justify-between gap-4 flex-wrap">
-                <div className="relative flex-1 max-w-xs">
-                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-slate-400">search</span>
-                    <input
-                        type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
-                        placeholder="Tìm kiếm sáng kiến..."
-                        className="w-full pl-10 pr-4 py-2.5 text-[13px] border border-slate-200 rounded-xl bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 transition-all placeholder:text-slate-300"
-                    />
-                </div>
-                <button
-                    onClick={() => setShowModal(true)}
-                    className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-500 to-violet-500 hover:from-indigo-600 hover:to-violet-600 text-white font-semibold text-[13px] shadow-lg shadow-indigo-500/20 hover:-translate-y-0.5 transition-all flex-shrink-0"
-                >
-                    <span className="material-symbols-outlined text-[18px]">add_circle</span>
-                    Thêm sáng kiến mới
-                </button>
-            </div>
+            {/* ===== DIVIDER ===== */}
+            <hr className="border-gray-200" />
 
-            {/* ===== GRID 3×2 ===== */}
+            {/* ===== GRID ===== */}
             {loading ? (
                 <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm px-6 py-20 text-center">
                     <div className="w-8 h-8 border-3 border-indigo-200 border-t-indigo-600 rounded-full anim-spin mx-auto" />
                     <p className="text-sm text-slate-400 mt-3">Đang tải dữ liệu...</p>
                 </div>
-            ) : paginatedTickets.length === 0 ? (
-                <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm px-6 py-20 text-center">
-                    <div className="w-16 h-16 rounded-2xl bg-indigo-50 flex items-center justify-center mx-auto mb-4">
-                        <span className="material-symbols-outlined text-4xl text-indigo-300">lightbulb</span>
-                    </div>
-                    <h3 className="text-[16px] font-bold text-slate-700 mb-1">
-                        {searchQuery ? "Không tìm thấy kết quả" : "Chưa có sáng kiến nào"}
-                    </h3>
-                    <p className="text-[13px] text-slate-400 mb-5 max-w-sm mx-auto">
-                        {searchQuery
-                            ? `Không có sáng kiến nào phù hợp với "${searchQuery}"`
-                            : "Hãy bắt đầu bằng cách đề xuất ý tưởng tối ưu quy trình đầu tiên của bạn!"
-                        }
-                    </p>
-                    {!searchQuery && (
-                        <button
-                            onClick={() => setShowModal(true)}
-                            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-500 to-violet-500 text-white font-semibold text-[13px] shadow-lg shadow-indigo-500/20 hover:-translate-y-0.5 transition-all"
-                        >
-                            <span className="material-symbols-outlined text-[16px]">add_circle</span>
-                            Tạo đề xuất đầu tiên
-                        </button>
-                    )}
-                </div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                    {/* ── Dashed "Add New" Card ── */}
+                    <button
+                        onClick={() => setShowModal(true)}
+                        className="rounded-2xl border-2 border-dashed border-blue-300 bg-blue-50/50 flex flex-col items-center justify-center min-h-[220px] hover:bg-blue-100/60 hover:border-blue-400 cursor-pointer transition-all group"
+                    >
+                        <div className="w-14 h-14 rounded-2xl bg-blue-100 flex items-center justify-center mb-3 group-hover:bg-blue-200 transition-colors">
+                            <span className="material-symbols-outlined text-[32px] text-blue-500">add</span>
+                        </div>
+                        <p className="text-[14px] font-bold text-blue-600">Thêm sáng kiến mới</p>
+                        <p className="text-[11px] text-blue-400 mt-1">Đề xuất ý tưởng tối ưu quy trình</p>
+                    </button>
+
+                    {/* ── Ticket Cards ── */}
                     {paginatedTickets.map((ticket) => {
                         const st = statusConfig[ticket.status] || statusConfig.open;
                         const parsed = parseDesc(ticket.description);
@@ -305,6 +304,7 @@ export const IdeasView = ({ userId, userDepartment }: IdeasViewProps) => {
                                     {/* Pain point preview */}
                                     {parsed?.pain_point && (
                                         <p className="text-[12px] text-slate-400 leading-relaxed line-clamp-2 mb-3">
+                                            <span className="text-slate-500 font-medium">Mô tả: </span>
                                             {parsed.pain_point}
                                         </p>
                                     )}
@@ -333,8 +333,13 @@ export const IdeasView = ({ userId, userDepartment }: IdeasViewProps) => {
 
                                     {/* Footer */}
                                     <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100">
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-5 h-5 rounded-full bg-indigo-100 flex items-center justify-center">
+                                                <span className="text-[9px] font-bold text-indigo-600">{ticket.creator_name?.charAt(0)?.toUpperCase() || "?"}</span>
+                                            </div>
+                                            <span className="text-[11px] text-slate-400 font-medium">{ticket.creator_name}</span>
+                                        </div>
                                         <span className="text-[10px] font-mono font-semibold text-slate-300">{ticket.ticket_code}</span>
-                                        <span className="material-symbols-outlined text-[16px] text-slate-200 group-hover:text-indigo-400 transition-colors">arrow_forward</span>
                                     </div>
                                 </div>
                             </article>
